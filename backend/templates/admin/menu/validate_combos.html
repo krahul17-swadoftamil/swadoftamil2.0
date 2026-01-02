@@ -1,0 +1,30 @@
+{% extends "admin/base_site.html" %}
+{% load static %}
+
+{% block content %}
+  <h1>{{ title }}</h1>
+  <form method="post">
+    {% csrf_token %}
+    <table>
+      {{ form.as_table }}
+    </table>
+    <p><button type="submit" class="default">Run</button></p>
+  </form>
+
+  {% if output %}
+    <h2>Output</h2>
+    <pre style="white-space:pre-wrap; background:#f6f6f6; padding:12px; border:1px solid #ddd">{{ output }}</pre>
+    {% if csv_name or json_name %}
+      <h3>Downloads</h3>
+      <ul>
+        {% if csv_name %}
+          <li><a href="{% url 'admin_download_report' csv_name %}" target="_blank">Download CSV</a></li>
+        {% endif %}
+        {% if json_name %}
+          <li><a href="{% url 'admin_download_report' json_name %}" target="_blank">Download JSON</a></li>
+        {% endif %}
+      </ul>
+    {% endif %}
+  {% endif %}
+
+{% endblock %}

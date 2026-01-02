@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta http-equiv="refresh" content="10">
+<style>
+body { background:black; color:white; font-family:system-ui; }
+.order { border-bottom:2px solid #444; padding:16px; }
+.item { display:flex; justify-content:space-between; font-size:28px; }
+</style>
+</head>
+<body>
+
+{% for order in orders %}
+<div class="order">
+<h2>Order {{ order.id }}</h2>
+{% for item in order.items.all %}
+<div class="item">
+<span>{{ item.prepared_item.name }}</span>
+<span>x{{ item.quantity }}</span>
+</div>
+{% endfor %}
+</div>
+{% endfor %}
+
+<script>
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.register("/static/kitchen/offline.js");
+}
+</script>
+
+</body>
+</html>

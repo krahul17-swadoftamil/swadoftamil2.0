@@ -1,0 +1,208 @@
+/* ======================================================
+   Swad Admin — Left Filter Sidebar (FINAL • STABLE + ICON FIX)
+====================================================== */
+
+:root {
+  --swad-sidebar-width: 280px;
+  --swad-sidebar-bg: #0b0c0d;
+  --swad-sidebar-fg: #e6e6e6;
+  --swad-accent: #d1a82c;
+}
+
+/* ------------------------------------------------------
+   HARD RESET — stop boxed / centered admin layout
+------------------------------------------------------ */
+#content,
+#content-main {
+  max-width: none !important;
+  margin: 0 !important;
+  padding: 16px !important;
+}
+
+/* ------------------------------------------------------
+   LEFT FILTER SIDEBAR (isolated)
+------------------------------------------------------ */
+#swad-filter-sidebar {
+  position: fixed;
+  inset: 0 auto 0 0;
+  width: var(--swad-sidebar-width);
+  background: var(--swad-sidebar-bg);
+  color: var(--swad-sidebar-fg);
+  padding: 14px 10px;
+  overflow-y: auto;
+  z-index: 1000;
+  box-shadow: 2px 0 10px rgba(0,0,0,.6);
+}
+
+#swad-filter-sidebar .swad-filter-inner {
+  padding-bottom: 80px;
+}
+
+/* ------------------------------------------------------
+   🚨 SINGLE SHIFT RULE — THIS IS THE GAP FIX
+------------------------------------------------------ */
+body.with-swad-sidebar #content-main {
+  margin-left: var(--swad-sidebar-width) !important;
+}
+
+/* ❌ NEVER shift:
+   .breadcrumbs
+   .change-list
+   .module
+   #content
+*/
+
+/* ------------------------------------------------------
+   FILTER STYLING
+------------------------------------------------------ */
+#swad-filter-sidebar .module {
+  background: transparent;
+  border: none;
+  padding-bottom: 12px;
+}
+
+#swad-filter-sidebar .module h2 {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--swad-sidebar-fg);
+  margin-bottom: 6px;
+}
+
+#swad-filter-sidebar .filter a {
+  color: #cfcfcf;
+  font-size: 13px;
+  text-decoration: none;
+}
+
+#swad-filter-sidebar .filter a.selected {
+  color: var(--swad-accent);
+  font-weight: 700;
+}
+
+/* ------------------------------------------------------
+   FILTER TOGGLE BUTTON
+------------------------------------------------------ */
+#swad-filter-toggle {
+  position: fixed;
+  top: 12px;
+  left: calc(var(--swad-sidebar-width) + 12px);
+  z-index: 1010;
+  background: var(--swad-accent);
+  color: #000;
+  border-radius: 8px;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  border: none;
+  cursor: pointer;
+}
+
+/* ------------------------------------------------------
+   COLLAPSED STATE
+------------------------------------------------------ */
+body.swad-sidebar-collapsed #swad-filter-sidebar {
+  transform: translateX(-100%);
+}
+
+body.swad-sidebar-collapsed #content-main {
+  margin-left: 0 !important;
+}
+
+body.swad-sidebar-collapsed #swad-filter-toggle {
+  left: 10px;
+}
+
+/* ------------------------------------------------------
+   MOBILE MODE
+------------------------------------------------------ */
+@media (max-width: 900px) {
+  #swad-filter-sidebar {
+    transform: translateX(-100%);
+  }
+
+  body.with-swad-sidebar #content-main {
+    margin-left: 0 !important;
+  }
+
+  #swad-filter-sidebar.open {
+    transform: translateX(0);
+  }
+
+  #swad-filter-toggle {
+    left: 10px;
+  }
+}
+
+/* ------------------------------------------------------
+   🔥 BIG ICON FIX (INLINE ACTIONS)
+------------------------------------------------------ */
+
+/* Kill scaling, padding, hover zoom */
+.inline-related a,
+.inline-group a,
+.related-widget-wrapper a,
+.change-list a {
+  padding: 0 !important;
+  margin-right: 6px !important;
+  background: none !important;
+  border: none !important;
+  box-shadow: none !important;
+  transform: none !important;
+}
+
+/* Clamp ALL icon content */
+.inline-related a *,
+.inline-group a *,
+.related-widget-wrapper a *,
+.change-list a * {
+  width: 16px !important;
+  height: 16px !important;
+  font-size: 16px !important;
+  line-height: 16px !important;
+}
+
+/* SVG hard clamp */
+svg {
+  max-width: 16px !important;
+  max-height: 16px !important;
+}
+
+/* Prevent row height inflation */
+.inline-related td,
+.inline-group td {
+  vertical-align: middle !important;
+}
+
+.inline-related .form-row,
+.inline-group .form-row {
+  padding-top: 6px !important;
+  padding-bottom: 6px !important;
+}
+
+/* ------------------------------------------------------
+   PERFORMANCE SAFE
+------------------------------------------------------ */
+#content-main {
+  transition: margin-left 0.2s ease;
+}
+
+(() => {
+  const SOUND = new Audio("/static/admin/new_order.mp3");
+  let lastOrderId = null;
+
+  async function poll() {
+    try {
+      const res = await fetch("/api/orders/latest/");
+      const data = await res.json();
+
+      if (data.id && data.id !== lastOrderId) {
+        if (lastOrderId !== null) SOUND.play();
+        lastOrderId = data.id;
+      }
+    } catch (e) {
+      console.warn("Order poll failed");
+    }
+  }
+
+  setInterval(poll, 5000);
+})();

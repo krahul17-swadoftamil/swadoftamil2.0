@@ -1,0 +1,15 @@
+{% extends "admin/change_list.html" %}
+{% load i18n %}
+
+{% block object-tools-items %}
+  {{ block.super }}
+  <li>
+    <a class="button" href="{{ validate_combos_url }}">Validate Combos</a>
+  </li>
+  <li>
+    <a class="button" href="{{ repair_combos_url }}">Repair Suggestions</a>
+  </li>
+  <li>
+    <a class="button" href="{{ profit_forecast_url }}">Profit Forecast</a>
+  </li>
+{% endblock %}

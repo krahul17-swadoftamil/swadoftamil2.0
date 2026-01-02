@@ -1,0 +1,505 @@
+/* ======================================================
+   Swad Admin — ERP Sidebar + QSR Layout
+   Single-sidebar, no gaps, dark/light safe
+====================================================== */
+
+/* ------------------------------------------------------
+   DESIGN TOKENS
+------------------------------------------------------ */
+:root {
+  --swad-sidebar-width: 260px;
+  --swad-radius: 10px;
+  --swad-gap: 12px;
+  --swad-module-gap: 18px;
+  --swad-header-height: 48px;
+
+  /* Colors — Dark (default) */
+  --swad-bg: #0b0c0d;
+  --swad-surface: rgba(230,238,243,0.06);
+  --swad-text: #e6eef3;
+  --swad-text-rgb: 230,238,243;
+  --swad-border: rgba(230,238,243,0.08);
+
+  --swad-accent: #d1a82c;
+
+  --swad-sidebar-bg: #0b0c0d;
+  --swad-sidebar-fg: #e6e6e6;
+}
+
+/* ------------------------------------------------------
+   LIGHT MODE (opt-in)
+------------------------------------------------------ */
+body.swad-theme-light {
+  --swad-bg: #ffffff;
+  --swad-surface: rgba(2,6,23,0.03);
+  --swad-text: #111827;
+  --swad-text-rgb: 17,24,39;
+  --swad-border: rgba(2,6,23,0.06);
+  --swad-sidebar-bg: #f6f7f9;
+  --swad-sidebar-fg: #0b1220;
+}
+
+/* ------------------------------------------------------
+   HARD RESET — remove boxed admin layout
+------------------------------------------------------ */
+#content,
+#content-main,
+.main,
+.content {
+  max-width: none !important;
+  margin: 0 !important;
+}
+
+/* ------------------------------------------------------
+   REMOVE DJANGO DEFAULT SIDEBAR (ONE SIDEBAR RULE)
+------------------------------------------------------ */
+#nav-sidebar {
+  display: none !important;
+}
+
+/* ------------------------------------------------------
+   LEFT FILTER SIDEBAR (PRIMARY)
+------------------------------------------------------ */
+#swad-filter-sidebar {
+  position: fixed;
+  inset: 0 auto 0 0;
+  width: var(--swad-sidebar-width);
+  background: var(--swad-sidebar-bg);
+  color: var(--swad-sidebar-fg);
+  padding: 14px 10px;
+  overflow-y: auto;
+  z-index: 1020;
+  box-shadow: 2px 0 10px rgba(0,0,0,0.6);
+}
+
+#swad-filter-sidebar .swad-filter-inner {
+  padding: calc(var(--swad-header-height) + 8px) 10px 80px;
+}
+
+/* ------------------------------------------------------
+   SHIFT ADMIN CONTENT (ONLY ONCE)
+------------------------------------------------------ */
+body.with-swad-sidebar #header,
+body.with-swad-sidebar #content,
+body.with-swad-sidebar #content-main,
+body.with-swad-sidebar .breadcrumbs,
+body.with-swad-sidebar .change-list {
+  margin-left: var(--swad-sidebar-width) !important;
+}
+
+/* ------------------------------------------------------
+   COMPACT APP SWITCHER (HEADER)
+------------------------------------------------------ */
+#header {
+  position: relative;
+}
+
+#swad-app-switcher {
+  position: absolute;
+  top: 10px;
+  left: 12px;
+  display: flex;
+  gap: 8px;
+  z-index: 1050;
+}
+
+#swad-app-switcher a {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  font-size: 12px;
+  color: var(--swad-text);
+  background: rgba(var(--swad-text-rgb),0.06);
+  border: 1px solid rgba(var(--swad-text-rgb),0.08);
+  border-radius: 8px;
+  text-decoration: none;
+}
+
+#swad-app-switcher a:hover {
+  background: rgba(var(--swad-text-rgb),0.12);
+}
+
+@media (min-width: 1200px) {
+  #swad-app-switcher .label {
+    display: inline;
+  }
+}
+
+/* ------------------------------------------------------
+   FILTER MODULES — COLLAPSIBLE
+------------------------------------------------------ */
+.swad-module {
+  margin-bottom: var(--swad-module-gap);
+}
+
+.swad-module h2 {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 12px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--swad-sidebar-fg);
+  border-radius: var(--swad-radius);
+  cursor: pointer;
+}
+
+.swad-module-content {
+  padding: 8px 6px 0;
+  max-height: 2000px;
+  opacity: 1;
+  overflow: hidden;
+  transition: max-height .22s ease, opacity .16s ease;
+}
+
+.swad-module-collapsed .swad-module-content {
+  max-height: 0;
+  opacity: 0;
+}
+
+.swad-toggle-icon {
+  transition: transform .18s ease;
+}
+
+.swad-module-collapsed .swad-toggle-icon {
+  transform: rotate(-90deg);
+}
+
+/* ------------------------------------------------------
+   FILTER LINKS
+------------------------------------------------------ */
+#swad-filter-sidebar .filter a {
+  font-size: 13px;
+  color: rgba(var(--swad-text-rgb),0.9);
+}
+
+#swad-filter-sidebar .filter a.selected {
+  color: var(--swad-accent);
+  font-weight: 700;
+}
+
+/* ------------------------------------------------------
+   FILTER TOGGLE BUTTON
+------------------------------------------------------ */
+#swad-filter-toggle {
+  position: fixed;
+  top: 12px;
+  left: calc(var(--swad-sidebar-width) + 10px);
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  background: var(--swad-accent);
+  color: var(--swad-text);
+  border: 0;
+  border-radius: 999px;
+  cursor: pointer;
+  z-index: 1030;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.45);
+}
+
+/* ------------------------------------------------------
+   COLLAPSED SIDEBAR
+------------------------------------------------------ */
+body.swad-sidebar-collapsed #swad-filter-sidebar {
+  transform: translateX(-100%);
+}
+
+body.swad-sidebar-collapsed #header,
+body.swad-sidebar-collapsed #content,
+body.swad-sidebar-collapsed #content-main,
+body.swad-sidebar-collapsed .breadcrumbs {
+  margin-left: 0 !important;
+}
+
+body.swad-sidebar-collapsed #swad-filter-toggle {
+  left: 10px;
+}
+
+/* ------------------------------------------------------
+   MOBILE MODE
+------------------------------------------------------ */
+@media (max-width: 900px) {
+  #swad-filter-sidebar {
+    transform: translateX(-100%);
+  }
+
+  body.with-swad-sidebar #header,
+  body.with-swad-sidebar #content,
+  body.with-swad-sidebar #content-main {
+    margin-left: 0 !important;
+  }
+
+  #swad-filter-sidebar.open {
+    transform: translateX(0);
+  }
+
+  #swad-filter-toggle {
+    left: 10px;
+  }
+}
+
+/* ------------------------------------------------------
+   SAFE TRANSITIONS
+------------------------------------------------------ */
+#content,
+#content-main {
+  transition: margin-left .2s ease;
+}
+
+* {
+  box-sizing: border-box;
+}
+/* ======================================================
+   Swad Admin — ERP Sidebar + QSR Layout
+   Single-sidebar, no gaps, dark/light safe
+====================================================== */
+
+/* ------------------------------------------------------
+   DESIGN TOKENS
+------------------------------------------------------ */
+:root {
+  --swad-sidebar-width: 260px;
+  --swad-radius: 10px;
+  --swad-gap: 12px;
+  --swad-module-gap: 18px;
+  --swad-header-height: 48px;
+
+  /* Colors — Dark (default) */
+  --swad-bg: #0b0c0d;
+  --swad-surface: rgba(230,238,243,0.06);
+  --swad-text: #e6eef3;
+  --swad-text-rgb: 230,238,243;
+  --swad-border: rgba(230,238,243,0.08);
+
+  --swad-accent: #d1a82c;
+
+  --swad-sidebar-bg: #0b0c0d;
+  --swad-sidebar-fg: #e6e6e6;
+}
+
+/* ------------------------------------------------------
+   LIGHT MODE (opt-in)
+------------------------------------------------------ */
+body.swad-theme-light {
+  --swad-bg: #ffffff;
+  --swad-surface: rgba(2,6,23,0.03);
+  --swad-text: #111827;
+  --swad-text-rgb: 17,24,39;
+  --swad-border: rgba(2,6,23,0.06);
+  --swad-sidebar-bg: #f6f7f9;
+  --swad-sidebar-fg: #0b1220;
+}
+
+/* ------------------------------------------------------
+   HARD RESET — remove boxed admin layout
+------------------------------------------------------ */
+#content,
+#content-main,
+.main,
+.content {
+  max-width: none !important;
+  margin: 0 !important;
+}
+
+/* ------------------------------------------------------
+   REMOVE DJANGO DEFAULT SIDEBAR (ONE SIDEBAR RULE)
+------------------------------------------------------ */
+#nav-sidebar {
+  display: none !important;
+}
+
+/* ------------------------------------------------------
+   LEFT FILTER SIDEBAR (PRIMARY)
+------------------------------------------------------ */
+#swad-filter-sidebar {
+  position: fixed;
+  inset: 0 auto 0 0;
+  width: var(--swad-sidebar-width);
+  background: var(--swad-sidebar-bg);
+  color: var(--swad-sidebar-fg);
+  padding: 14px 10px;
+  overflow-y: auto;
+  z-index: 1020;
+  box-shadow: 2px 0 10px rgba(0,0,0,0.6);
+}
+
+#swad-filter-sidebar .swad-filter-inner {
+  padding: calc(var(--swad-header-height) + 8px) 10px 80px;
+}
+
+/* ------------------------------------------------------
+   SHIFT ADMIN CONTENT (ONLY ONCE)
+------------------------------------------------------ */
+body.with-swad-sidebar #header,
+body.with-swad-sidebar #content,
+body.with-swad-sidebar #content-main,
+body.with-swad-sidebar .breadcrumbs,
+body.with-swad-sidebar .change-list {
+  margin-left: var(--swad-sidebar-width) !important;
+}
+
+/* ------------------------------------------------------
+   COMPACT APP SWITCHER (HEADER)
+------------------------------------------------------ */
+#header {
+  position: relative;
+}
+
+#swad-app-switcher {
+  position: absolute;
+  top: 10px;
+  left: 12px;
+  display: flex;
+  gap: 8px;
+  z-index: 1050;
+}
+
+#swad-app-switcher a {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  font-size: 12px;
+  color: var(--swad-text);
+  background: rgba(var(--swad-text-rgb),0.06);
+  border: 1px solid rgba(var(--swad-text-rgb),0.08);
+  border-radius: 8px;
+  text-decoration: none;
+}
+
+#swad-app-switcher a:hover {
+  background: rgba(var(--swad-text-rgb),0.12);
+}
+
+@media (min-width: 1200px) {
+  #swad-app-switcher .label {
+    display: inline;
+  }
+}
+
+/* ------------------------------------------------------
+   FILTER MODULES — COLLAPSIBLE
+------------------------------------------------------ */
+.swad-module {
+  margin-bottom: var(--swad-module-gap);
+}
+
+.swad-module h2 {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 12px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--swad-sidebar-fg);
+  border-radius: var(--swad-radius);
+  cursor: pointer;
+}
+
+.swad-module-content {
+  padding: 8px 6px 0;
+  max-height: 2000px;
+  opacity: 1;
+  overflow: hidden;
+  transition: max-height .22s ease, opacity .16s ease;
+}
+
+.swad-module-collapsed .swad-module-content {
+  max-height: 0;
+  opacity: 0;
+}
+
+.swad-toggle-icon {
+  transition: transform .18s ease;
+}
+
+.swad-module-collapsed .swad-toggle-icon {
+  transform: rotate(-90deg);
+}
+
+/* ------------------------------------------------------
+   FILTER LINKS
+------------------------------------------------------ */
+#swad-filter-sidebar .filter a {
+  font-size: 13px;
+  color: rgba(var(--swad-text-rgb),0.9);
+}
+
+#swad-filter-sidebar .filter a.selected {
+  color: var(--swad-accent);
+  font-weight: 700;
+}
+
+/* ------------------------------------------------------
+   FILTER TOGGLE BUTTON
+------------------------------------------------------ */
+#swad-filter-toggle {
+  position: fixed;
+  top: 12px;
+  left: calc(var(--swad-sidebar-width) + 10px);
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  background: var(--swad-accent);
+  color: var(--swad-text);
+  border: 0;
+  border-radius: 999px;
+  cursor: pointer;
+  z-index: 1030;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.45);
+}
+
+/* ------------------------------------------------------
+   COLLAPSED SIDEBAR
+------------------------------------------------------ */
+body.swad-sidebar-collapsed #swad-filter-sidebar {
+  transform: translateX(-100%);
+}
+
+body.swad-sidebar-collapsed #header,
+body.swad-sidebar-collapsed #content,
+body.swad-sidebar-collapsed #content-main,
+body.swad-sidebar-collapsed .breadcrumbs {
+  margin-left: 0 !important;
+}
+
+body.swad-sidebar-collapsed #swad-filter-toggle {
+  left: 10px;
+}
+
+/* ------------------------------------------------------
+   MOBILE MODE
+------------------------------------------------------ */
+@media (max-width: 900px) {
+  #swad-filter-sidebar {
+    transform: translateX(-100%);
+  }
+
+  body.with-swad-sidebar #header,
+  body.with-swad-sidebar #content,
+  body.with-swad-sidebar #content-main {
+    margin-left: 0 !important;
+  }
+
+  #swad-filter-sidebar.open {
+    transform: translateX(0);
+  }
+
+  #swad-filter-toggle {
+    left: 10px;
+  }
+}
+
+/* ------------------------------------------------------
+   SAFE TRANSITIONS
+------------------------------------------------------ */
+#content,
+#content-main {
+  transition: margin-left .2s ease;
+}
+
+* {
+  box-sizing: border-box;
+}
+

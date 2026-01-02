@@ -1,0 +1,283 @@
+/* ======================================================
+   SWAD ADMIN — LEFT FILTER SIDEBAR
+   FINAL • STABLE • DJANGO-SAFE • DARK MODE
+====================================================== */
+
+/* ======================================================
+   ROOT VARIABLES
+====================================================== */
+:root {
+  --swad-sidebar-width: 280px;
+  --swad-sidebar-bg: #0b0c0d;
+  --swad-sidebar-fg: #e6e6e6;
+  --swad-accent: #d1a82c;
+}
+
+/* ======================================================
+   HARD RESET — FLUID ADMIN (SAFE)
+====================================================== */
+#content,
+#content-main {
+  max-width: none !important;
+  margin: 0 !important;
+  padding: 16px !important;
+}
+
+/* ======================================================
+   LEFT FILTER SIDEBAR (ISOLATED)
+====================================================== */
+#swad-filter-sidebar {
+  position: fixed;
+  inset: 0 auto 0 0;
+  width: var(--swad-sidebar-width);
+  background: var(--swad-sidebar-bg);
+  color: var(--swad-sidebar-fg);
+  padding: 14px 10px;
+  overflow-y: auto;
+  z-index: 1000;
+  box-shadow: 2px 0 10px rgba(0,0,0,.6);
+}
+
+#swad-filter-sidebar .swad-filter-inner {
+  padding-bottom: 80px;
+}
+
+/* ======================================================
+   CONTENT SHIFT — SINGLE SOURCE OF TRUTH
+====================================================== */
+body.with-swad-sidebar #content-main {
+  margin-left: var(--swad-sidebar-width) !important;
+}
+
+/* ======================================================
+   FILTER BLOCK STYLING
+====================================================== */
+#swad-filter-sidebar .module {
+  background: transparent;
+  border: none;
+  padding-bottom: 12px;
+}
+
+#swad-filter-sidebar .module h2 {
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 6px;
+  color: var(--swad-sidebar-fg);
+}
+
+#swad-filter-sidebar .filter a {
+  font-size: 13px;
+  color: #cfcfcf;
+  text-decoration: none;
+}
+
+#swad-filter-sidebar .filter a.selected {
+  color: var(--swad-accent);
+  font-weight: 700;
+}
+
+/* ======================================================
+   FILTER TOGGLE BUTTON
+====================================================== */
+#swad-filter-toggle {
+  position: fixed;
+  top: 12px;
+  left: calc(var(--swad-sidebar-width) + 12px);
+  z-index: 1010;
+  background: var(--swad-accent);
+  color: #000;
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  border: none;
+  cursor: pointer;
+}
+
+/* ======================================================
+   COLLAPSED STATE
+====================================================== */
+body.swad-sidebar-collapsed #swad-filter-sidebar {
+  transform: translateX(-100%);
+}
+
+body.swad-sidebar-collapsed #content-main {
+  margin-left: 0 !important;
+}
+
+body.swad-sidebar-collapsed #swad-filter-toggle {
+  left: 10px;
+}
+
+/* ======================================================
+   MOBILE MODE — OVERLAY
+====================================================== */
+@media (max-width: 900px) {
+  #swad-filter-sidebar {
+    transform: translateX(-100%);
+  }
+
+  body.with-swad-sidebar #content-main {
+    margin-left: 0 !important;
+  }
+
+  #swad-filter-sidebar.open {
+    transform: translateX(0);
+  }
+
+  #swad-filter-toggle {
+    left: 10px;
+  }
+}
+
+/* ======================================================
+   INLINE ICON FIX (SAFE SCOPE)
+====================================================== */
+.inline-related a,
+.inline-group a,
+.related-widget-wrapper a {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 22px !important;
+  height: 22px !important;
+  padding: 0 !important;
+  margin-right: 4px !important;
+  background: none !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+/* Clamp icon glyphs */
+.inline-related a *,
+.inline-group a *,
+.related-widget-wrapper a * {
+  width: 14px !important;
+  height: 14px !important;
+  font-size: 14px !important;
+  line-height: 14px !important;
+}
+
+/* Django background icons */
+.inline-related a {
+  background-size: 14px 14px !important;
+  background-position: center !important;
+  background-repeat: no-repeat !important;
+}
+
+/* ======================================================
+   INLINE ROW ALIGNMENT
+====================================================== */
+.inline-related td,
+.inline-group td {
+  vertical-align: middle !important;
+}
+
+.inline-related .form-row,
+.inline-group .form-row {
+  padding: 6px 0 !important;
+}
+
+/* ======================================================
+   FILE INPUT FIX (CRITICAL)
+====================================================== */
+.inline-related input[type="file"],
+.inline-group input[type="file"] {
+  display: inline-block !important;
+  max-width: 260px !important;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: middle !important;
+}
+
+/* Preview column */
+.inline-related .field-preview,
+.inline-group .field-preview {
+  width: 96px !important;
+  text-align: center !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+}
+
+/* ======================================================
+   INGREDIENT SELECT OVERFLOW FIX
+====================================================== */
+.inline-related td.field-ingredient {
+  white-space: nowrap;
+}
+
+.inline-related td.field-ingredient select,
+.inline-related td.field-ingredient .select2-container {
+  max-width: 260px;
+}
+
+.inline-related td {
+  overflow: visible !important;
+}
+
+/* ======================================================
+   INLINE DUPLICATE LABEL REMOVAL (CRITICAL)
+====================================================== */
+.inline-related .inline_label,
+.inline-group .inline_label,
+.inline-related p.help,
+.inline-group p.help,
+.inline-related .original,
+.inline-group .original {
+  display: none !important;
+}
+
+/* ======================================================
+   PERFORMANCE SAFE TRANSITION
+====================================================== */
+#content-main {
+  transition: margin-left 0.2s ease;
+}
+
+/* ======================================================
+   FIX INLINE READONLY TEXT ALIGNMENT (CRITICAL)
+====================================================== */
+
+/* Force readonly values inline */
+.inline-related td p,
+.inline-group td p {
+  margin: 0 !important;
+  padding: 0 !important;
+  display: inline !important;
+  white-space: nowrap !important;
+  line-height: 1.4 !important;
+}
+
+/* Keep item name column wide */
+.inline-related td.field-combo,
+.inline-related td.field-prepared_item {
+  white-space: nowrap !important;
+  vertical-align: middle !important;
+}
+
+/* Align quantity column perfectly */
+.inline-related td.field-quantity {
+  text-align: right !important;
+  width: 80px !important;
+  vertical-align: middle !important;
+}
+
+/* FIX INLINE READONLY TEXT (NO <p> STACKING) */
+.inline-related td p,
+.inline-group td p {
+  display: inline !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  white-space: nowrap !important;
+}
+
+.inline-related td {
+  vertical-align: middle !important;
+}
+
+.inline-related td.field-quantity {
+  text-align: right !important;
+  width: 80px !important;
+}
+

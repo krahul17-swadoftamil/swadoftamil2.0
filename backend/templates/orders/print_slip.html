@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html>
+<body style="font-family:monospace;width:280px;">
+<h3 style="text-align:center;">SWAD OF TAMIL</h3>
+
+<p>Order: {{ order.id }}</p>
+<p>{{ order.created_at }}</p>
+<hr>
+
+{% for item in order.items.all %}
+<div style="display:flex;justify-content:space-between;">
+  <span>{{ item.prepared_item.name }}</span>
+  <span>x{{ item.quantity }}</span>
+</div>
+{% endfor %}
+
+<hr>
+<button onclick="window.print()">PRINT</button>
+</body>
+</html>

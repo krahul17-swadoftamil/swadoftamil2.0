@@ -1,0 +1,237 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  *, *::before, *::after {
+    box-sizing: border-box;
+  }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    min-height: 100%;
+  }
+
+  html {
+    font-family: system-ui, -apple-system, BlinkMacSystemFont,
+      "Segoe UI", Roboto, Ubuntu, Cantarell,
+      "Helvetica Neue", Arial, sans-serif;
+  }
+
+  body {
+    background-color: var(--bg-app);
+    color: var(--text-primary);
+    font-size: 16px;
+    line-height: 1.5;
+    transition: background-color 300ms ease, color 300ms ease;
+  }
+
+  img {
+    display: block;
+    max-width: 100%;
+  }
+
+  ::selection {
+    background: var(--accent);
+    color: #000;
+  }
+}
+
+/* ================= DESIGN TOKENS (PREMIUM) ================= */
+:root {
+  --radius: 16px;
+  --card-padding: 12px;
+  --card-gap: 14px;
+  --accent-glow: rgba(250,204,21,0.06);
+  --accent-glow-strong: rgba(250,204,21,0.12);
+  --success: #43a047;
+  --muted-rgba: 0,0,0,0.45;
+}
+/* ================= LIGHT ================= */
+html.light {
+  --bg-app: #fbf7f2;
+  --bg-surface: #f3eee9;
+  --bg-card: #ffffff;
+
+  --text-primary: #1f1b18;
+  --text-muted: #6e6159;
+  --text-soft: #9a8f86;
+
+  --accent: #d99a2b;
+  --accent-strong: #f39c2a;
+
+  --border: rgba(31, 27, 24, 0.08);
+  --shadow-soft: 0 6px 18px rgba(31, 27, 24, 0.06);
+  --shadow-hover: 0 12px 30px rgba(31, 27, 24, 0.1);
+  --accent-glow: rgba(217,154,43,0.06);
+  --accent-glow-strong: rgba(217,154,43,0.12);
+}
+
+/* ================= DARK ================= */
+html.dark {
+  --bg-app: #0b0b0b;
+  --bg-surface: #111111;
+  --bg-card: #161616;
+
+  --text-primary: #ffffff;
+  --text-muted: #cbd5e1;
+  --text-soft: #94a3b8;
+
+  --accent: #facc15;
+  --accent-strong: #fde047;
+
+  --border: rgba(255, 255, 255, 0.08);
+  --shadow-soft: 0 6px 18px rgba(0, 0, 0, 0.6);
+  --shadow-hover: 0 14px 34px rgba(0, 0, 0, 0.8);
+  --accent-glow: rgba(250,204,21,0.06);
+  --accent-glow-strong: rgba(250,204,21,0.12);
+}
+@layer utilities {
+  .bg-app { background-color: var(--bg-app); }
+  .bg-surface { background-color: var(--bg-surface); }
+  .bg-card { background-color: var(--bg-card); }
+
+  .text-text { color: var(--text-primary); }
+  .text-muted { color: var(--text-muted); }
+  .text-soft { color: var(--text-soft); }
+  .text-accent { color: var(--accent); }
+
+  .border-subtle { border-color: var(--border); }
+  .aspect-square { position: relative; width: 100%; padding-bottom: 100%; }
+  .aspect-square > img, .aspect-square > * {
+    position: absolute; inset: 0; width: 100%; height: 100%;
+  }
+}
+@layer components {
+  .card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-soft);
+    padding: var(--card-padding);
+    transition: transform 220ms ease, box-shadow 220ms ease, opacity 220ms ease;
+  }
+
+  .card:hover {
+    transform: translateY(-4px);
+    box-shadow: var(--shadow-hover);
+  }
+
+  /* subtle radial glow used by product cards */
+  .glow-radial {
+    background: radial-gradient(ellipse at center, var(--accent-glow), transparent 40%);
+    border-radius: inherit;
+  }
+
+  /* glow animation */
+  @keyframes glowPulse {
+    0% { transform: scale(0.98); opacity: 0.6; }
+    50% { transform: scale(1.02); opacity: 0.9; }
+    100% { transform: scale(0.98); opacity: 0.6; }
+  }
+
+  .glow-anim { will-change: transform, opacity; }
+  .glow-anim.play { animation: glowPulse 2.2s ease-in-out infinite; }
+
+  /* compact hero layout token */
+  .page-hero {
+    padding-top: 2.25rem; padding-bottom: 2.25rem;
+  }
+
+  .hero-inner { max-width: 56rem; }
+
+  /* Skeleton tokens */
+  .skeleton-card { background: linear-gradient(90deg, rgba(255,255,255,0.02) 0%, rgba(255,255,255,0.04) 50%, rgba(255,255,255,0.02) 100%); border-radius: calc(var(--radius) - 2px); overflow: hidden; }
+  .skeleton-block { background: linear-gradient(90deg, rgba(255,255,255,0.02), rgba(255,255,255,0.04)); }
+
+  /* price chips */
+  .price-mrp { color: var(--text-soft); text-decoration: line-through; }
+  .price-selling { color: var(--accent); font-weight: 700; }
+  .price-discount { color: var(--success); font-weight: 600; margin-left: 6px; }
+}
+
+.combo-image-ratio { position: relative; width: 100%; padding-bottom: 75%; /* 4:3 aspect ratio for consistent cards */ }
+.inset-image { padding: 6px; } /* inset image so it doesn't touch edges (tighter) */
+
+/* Unified image ratio for cards (4:3) to keep layout consistent */
+.item-image-ratio { position: relative; width: 100%; padding-bottom: 75%; }
+
+/* ItemCard image glow & hover (moved from inline JSX) */
+.item-image-glow {
+  filter: brightness(0.98) saturate(1.02);
+}
+
+/* Removed image-scale hover/active transforms to keep cards visually static
+   (only keep hover shadow). */
+.card-gradient {
+  background: linear-gradient(180deg, var(--bg-card) 0%, rgba(255,255,255,0.01) 100%);
+}
+
+/* Accent tokens */
+.text-accent-strong { color: var(--accent-strong); }
+
+
+/* Respect reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; animation: none !important; }
+}
+
+/* Navbar status dot (subtle live indicator) */
+.status-dot {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+  background: var(--accent-strong);
+  box-shadow: 0 0 10px var(--accent-glow-strong);
+  transform-origin: center;
+}
+
+@keyframes statusPulse {
+  0% { transform: scale(0.9); opacity: 0.85; }
+  50% { transform: scale(1.18); opacity: 1; }
+  100% { transform: scale(0.9); opacity: 0.85; }
+}
+
+.pulse { animation: statusPulse 2.6s ease-in-out infinite; }
+
+.status-dot[title] { margin-left: 2px; }
+
+/* status states */
+.status-dot.open {
+  background: var(--success);
+  box-shadow: 0 0 12px rgba(67,160,71,0.12);
+}
+.status-dot.limited {
+  background: var(--accent-strong);
+  box-shadow: 0 0 12px rgba(250,204,21,0.12);
+  animation-duration: 2.2s;
+}
+.status-dot.closed {
+  background: rgba(154,143,134,0.45);
+  box-shadow: none;
+  animation: none;
+}
+
+/* Ensure images inside our card-ratio containers are absolutely positioned
+   and cover the container consistently (no gaps). */
+.combo-image-ratio img, .item-image-ratio img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.item-image-ratio > img,
+.combo-image-ratio > img,
+.item-image-ratio > picture,
+.combo-image-ratio > picture {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}

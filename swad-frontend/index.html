@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <!-- ==================================================
+         CORE META
+    ================================================== -->
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+
+    <!-- Viewport (mobile-first, no zoom lock) -->
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    />
+
+    <!-- ==================================================
+         APP IDENTITY
+    ================================================== -->
+    <title>Swad of Tamil — Authentic South Indian Breakfast</title>
+
+    <meta
+      name="description"
+      content="Swad of Tamil serves authentic Tamil-style breakfast — Idli, Vada, Sambar & fresh chutneys. Traditional recipes, pure ingredients, made fresh every morning."
+    />
+
+    <!-- ==================================================
+         THEME & APPEARANCE
+    ================================================== -->
+
+    <!-- Default theme-color (will be dynamically updated by ThemeProvider) -->
+    <meta name="theme-color" content="#0b0b0b" />
+
+    <!-- Dark / Light support hint -->
+    <meta name="color-scheme" content="dark light" />
+
+    <!-- ==================================================
+         ICONS
+    ================================================== -->
+    <!-- Replace with real icons later -->
+    <link rel="icon" type="image/png" href="/favicon.png" />
+
+    <!-- ==================================================
+         PERFORMANCE & UX
+    ================================================== -->
+
+    <!-- Prevent flash of wrong theme before React loads -->
+    <script>
+      (function () {
+        try {
+          const pref = localStorage.getItem("theme-preference");
+          if (pref) {
+            const { theme } = JSON.parse(pref);
+            if (theme === "dark") {
+              document.documentElement.classList.add("dark");
+            }
+          }
+        } catch (e) {}
+      })();
+    </script>
+  </head>
+
+  <body>
+    <!-- ==================================================
+         REACT MOUNT POINT
+    ================================================== -->
+    <div id="root"></div>
+
+    <!-- ==================================================
+         APPLICATION ENTRY
+    ================================================== -->
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>

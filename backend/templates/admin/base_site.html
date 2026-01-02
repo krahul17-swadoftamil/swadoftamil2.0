@@ -1,0 +1,27 @@
+{% extends "admin/base.html" %}
+{% load static %}
+
+{% block title %}
+Swad of Tamil — Admin
+{% endblock %}
+
+{% block branding %}
+<h1 id="site-name">
+  <a href="{% url 'admin:index' %}" class="swad-logo">
+    Swad of Tamil
+  </a>
+</h1>
+{% endblock %}
+
+{% block extrahead %}
+{{ block.super }}
+
+{# Core admin-safe overrides only #}
+<link rel="stylesheet" href="{% static 'admin/swadtamil_admin.css' %}">
+
+{# Optional UI polish (must not affect layout widths) #}
+<link rel="stylesheet" href="{% static 'admin/swadtamil_admin_extra.css' %}">
+
+{# JS must be deferred and non-blocking #}
+<script src="{% static 'admin/swadtamil_admin.js' %}" defer></script>
+{% endblock %}
