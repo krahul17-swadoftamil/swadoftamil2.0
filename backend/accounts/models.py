@@ -1,6 +1,9 @@
 import uuid
+
 from django.conf import settings
+from django.core.exceptions import ValidationError
 from django.db import models
+from django.db.models import F
 from django.utils import timezone
 
 
@@ -9,19 +12,15 @@ from django.utils import timezone
 # ======================================================
 class Customer(models.Model):
     """
-    Customer = end user who places food orders.
-
-    DESIGN PRINCIPLES:
-    ✔ Phone-first identity (OTP-based)
-    ✔ No passwords, no auth.User dependency
-    ✔ Lightweight but analytics-ready
-    ✔ Immutable identity (phone)
+    Phone-first customer.
+    OTP based authentication.
+    Linked to Django User ONLY for session handling.
     """
 
     id = models.BigAutoField(primary_key=True)
     uuid = models.UUIDField(default=uuid.uuid4, editable=False, unique=True)
 
-    # Human-friendly reference code (CUST-XXXX)
+    # Public readable code (CUST0001 etc)
     code = models.CharField(
         max_length=16,
         unique=True,
@@ -31,46 +30,64 @@ class Customer(models.Model):
         blank=True,
     )
 
-    # Identity
+    # PRIMARY LOGIN IDENTIFIER
     phone = models.CharField(
         max_length=15,
         unique=True,
         db_index=True,
-        help_text="Primary identifier (OTP based login)",
+        help_text="Primary identifier (OTP login)",
     )
 
-    name = models.CharField(
-        max_length=120,
+    name = models.CharField(max_length=120, blank=True)
+    email = models.EmailField(blank=True)
+
+    # ================= GOOGLE AUTH =================
+    google_id = models.CharField(
+        max_length=50,
+        unique=True,
+        null=True,
         blank=True,
-        help_text="Optional. Asked on first successful order."
+        help_text="Google OAuth user ID",
     )
 
-    email = models.EmailField(
+    google_email = models.EmailField(
+        null=True,
         blank=True,
-        help_text="Optional. For receipts / future communication."
+        help_text="Email returned by Google OAuth",
     )
 
-    is_active = models.BooleanField(
-        default=True,
-        help_text="Soft disable customer if needed"
+    auth_provider = models.CharField(
+        max_length=20,
+        choices=[
+            ("phone", "Phone OTP"),
+            ("google", "Google OAuth"),
+        ],
+        default="phone",
+        help_text="Authentication method used",
     )
+
+    # 🔥 CRITICAL — SESSION AUTH LINK
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        related_name="customer_profile",
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        help_text="Linked Django user for session auth",
+    )
+
+    is_active = models.BooleanField(default=True)
 
     # ================= ORDER METRICS =================
-    first_order_at = models.DateTimeField(
-        null=True,
-        blank=True,
-        help_text="Timestamp of first successful order"
-    )
+    first_order_at = models.DateTimeField(null=True, blank=True)
+    last_order_at = models.DateTimeField(null=True, blank=True)
+    total_orders = models.PositiveIntegerField(default=0)
 
-    last_order_at = models.DateTimeField(
-        null=True,
+    # ================= CUSTOMER PREFERENCES =================
+    preferences = models.JSONField(
+        default=dict,
         blank=True,
-        help_text="Timestamp of most recent order"
-    )
-
-    total_orders = models.PositiveIntegerField(
-        default=0,
-        help_text="Total completed orders"
+        help_text="Customer preferences stored as JSON (e.g., dietary restrictions, favorite items)",
     )
 
     # ================= META =================
@@ -78,47 +95,85 @@ class Customer(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        ordering = ["-created_at"]
         verbose_name = "Customer"
         verbose_name_plural = "Customers"
+        ordering = ["-created_at"]
         indexes = [
             models.Index(fields=["phone"]),
             models.Index(fields=["created_at"]),
         ]
 
     def __str__(self):
-        return f"{self.name or self.phone}"
+        return self.name or self.phone
 
-    # ================= BUSINESS HELPERS =================
+    # ---------------- BUSINESS ----------------
     @property
     def is_first_time_customer(self):
         return self.total_orders == 0
 
     def mark_order_placed(self):
         """
-        Call this after a successful paid order.
+        Atomic order update (safe for concurrent requests)
         """
         now = timezone.now()
 
+        updates = {
+            "last_order_at": now,
+            "total_orders": F("total_orders") + 1,
+        }
+
         if not self.first_order_at:
-            self.first_order_at = now
+            updates["first_order_at"] = now
 
-        self.last_order_at = now
-        self.total_orders = models.F("total_orders") + 1
+        Customer.objects.filter(pk=self.pk).update(**updates)
 
-        self.save(update_fields=[
-            "first_order_at",
-            "last_order_at",
-            "total_orders",
-        ])
+    def link_google_account(self, google_id, google_email, name=None):
+        """
+        Link Google account to this customer.
+        Used for auto-linking when email matches.
+        """
+        if self.google_id and self.google_id != google_id:
+            raise ValueError("Customer already linked to different Google account")
+
+        self.google_id = google_id
+        self.google_email = google_email
+        self.auth_provider = "google"
+
+        if name and not self.name:
+            self.name = name
+
+        self.save(update_fields=["google_id", "google_email", "auth_provider", "name"])
+
+    def get_personalization_data(self):
+        """
+        Get customer data useful for personalization.
+        """
+        return {
+            'id': self.id,
+            'phone': self.phone,
+            'name': self.name,
+            'preferences': self.preferences or {},
+            'total_orders': self.total_orders,
+            'first_order_at': self.first_order_at,
+            'last_order_at': self.last_order_at,
+            'is_first_time_customer': self.total_orders == 0,
+        }
 
     def save(self, *args, **kwargs):
+        """
+        Auto-generate public customer code once.
+        """
         from core.utils import generate_and_set_code
 
         if not self.code:
             for _ in range(3):
                 try:
-                    generate_and_set_code(self, prefix="CUST", field="code", digits=4)
+                    generate_and_set_code(
+                        self,
+                        prefix="CUST",
+                        field="code",
+                        digits=4,
+                    )
                     break
                 except Exception:
                     continue
@@ -131,33 +186,21 @@ class Customer(models.Model):
 # ======================================================
 class OTP(models.Model):
     """
-    OTP = short-lived authentication record.
-
-    RULES:
-    ✔ Phone scoped
-    ✔ One-time use
-    ✔ Time-bound
-    ✔ No business logic
+    Short-lived OTP record.
+    Used ONLY for verification.
     """
 
-    phone = models.CharField(
-        max_length=15,
-        db_index=True
-    )
+    phone = models.CharField(max_length=15, db_index=True)
 
     code = models.CharField(
         max_length=6,
-        help_text="6-digit numeric OTP"
+        help_text="Numeric OTP",
     )
 
-    is_used = models.BooleanField(
-        default=False
-    )
+    is_used = models.BooleanField(default=False)
+    used_at = models.DateTimeField(null=True, blank=True)
 
-    expires_at = models.DateTimeField(
-        help_text="OTP expiry timestamp"
-    )
-
+    expires_at = models.DateTimeField()
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -174,20 +217,30 @@ class OTP(models.Model):
     def is_expired(self):
         return timezone.now() > self.expires_at
 
+    def mark_used(self):
+        self.is_used = True
+        self.used_at = timezone.now()
+        self.save(update_fields=["is_used", "used_at"])
+
 
 # ======================================================
-# SMS SETTING (ADMIN TOGGLE)
+# SMS SETTING (SINGLETON)
 # ======================================================
 class SMSSetting(models.Model):
     """
-    Simple singleton-style model to allow admins to toggle whether
-    plaintext OTPs may be returned in API responses for testing.
+    Admin toggle for OTP debug/testing behavior.
+    Only ONE row allowed.
     """
 
     allow_plaintext_otp = models.BooleanField(default=False)
 
+    def save(self, *args, **kwargs):
+        if not self.pk and SMSSetting.objects.exists():
+            raise ValidationError("Only one SMSSetting instance allowed.")
+        super().save(*args, **kwargs)
+
     def __str__(self):
-        return f"SMSSetting(allow_plaintext_otp={self.allow_plaintext_otp})"
+        return f"SMSSetting(plaintext={self.allow_plaintext_otp})"
 
 
 # ======================================================
@@ -195,8 +248,8 @@ class SMSSetting(models.Model):
 # ======================================================
 class Employee(models.Model):
     """
-    Employee profile for staff members.
-    Fields are intentionally compatible with the migration history.
+    Staff profile.
+    Can optionally link to Django User.
     """
 
     ROLE_CHOICES = [
@@ -232,8 +285,16 @@ class Employee(models.Model):
     phone = models.CharField(max_length=20, blank=True)
     email = models.EmailField(blank=True)
 
-    designation = models.CharField(max_length=32, choices=DESIGNATION_CHOICES)
-    role = models.CharField(max_length=32, choices=ROLE_CHOICES, default="other")
+    designation = models.CharField(
+        max_length=32,
+        choices=DESIGNATION_CHOICES,
+    )
+
+    role = models.CharField(
+        max_length=32,
+        choices=ROLE_CHOICES,
+        default="other",
+    )
 
     user = models.OneToOneField(
         settings.AUTH_USER_MODEL,
@@ -262,7 +323,12 @@ class Employee(models.Model):
         if not self.code:
             for _ in range(3):
                 try:
-                    generate_and_set_code(self, prefix="EMP", field="code", digits=4)
+                    generate_and_set_code(
+                        self,
+                        prefix="EMP",
+                        field="code",
+                        digits=4,
+                    )
                     break
                 except Exception:
                     continue

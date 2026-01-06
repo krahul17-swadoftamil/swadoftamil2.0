@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Swad of Tamil</string>
+    <string name="title_activity_main">Swad of Tamil</string>
+    <string name="package_name">com.swad.tamil</string>
+    <string name="custom_url_scheme">com.swad.tamil</string>
+</resources>

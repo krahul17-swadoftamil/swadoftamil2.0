@@ -8,35 +8,34 @@ class IngredientSerializer(serializers.ModelSerializer):
     """
     INGREDIENT SERIALIZER (READ-ONLY ERP API)
 
-    ✔ Stock lives here
-    ✔ Cost lives here
-    ✔ Used for availability & reporting
-    ❌ No mutation via API
+    ✔ Single source of truth
+    ✔ Used for reporting, dashboards, availability
+    ❌ No create / update
+    ❌ No business logic
     """
 
-    total_value = serializers.SerializerMethodField()
+    total_value = serializers.DecimalField(
+        max_digits=14,
+        decimal_places=2,
+        read_only=True,
+        source="total_value",
+    )
 
     class Meta:
         model = Ingredient
-        fields = [
+        fields = (
             "id",
+            "code",
             "name",
             "unit",
             "stock_qty",
             "cost_per_unit",
             "total_value",
+            "category",
+            "preferred_vendor",
+            "expiry_days",
             "is_active",
             "created_at",
             "updated_at",
-        ]
-
-        read_only_fields = fields  # 🔒 FULL READ-ONLY (ERP RULE)
-
-    # --------------------------------------------------
-    # DERIVED FIELDS
-    # --------------------------------------------------
-    def get_total_value(self, obj) -> Decimal:
-        """
-        Total inventory value (safe decimal)
-        """
-        return obj.total_value
+        )
+        read_only_fields = fields  # 🔒 ERP RULE: FULL READ-ONLY

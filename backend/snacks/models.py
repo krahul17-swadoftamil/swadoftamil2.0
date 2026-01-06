@@ -64,6 +64,15 @@ class Snack(BaseModel):
         ("savory", "Savory"),
     ]
 
+    REGION_CHOICES = [
+        ("chettinad", "Chettinad"),
+        ("andhra", "Andhra"),
+        ("kerala", "Kerala"),
+        ("karnataka", "Karnataka"),
+        ("tamil_nadu", "Tamil Nadu"),
+        ("other", "Other"),
+    ]
+
     # ---------- CORE ----------
     name = models.CharField(max_length=120)
     description = models.TextField(blank=True)
@@ -71,6 +80,13 @@ class Snack(BaseModel):
     category = models.CharField(
         max_length=20,
         choices=CATEGORY_CHOICES
+    )
+
+    region = models.CharField(
+        max_length=20,
+        choices=REGION_CHOICES,
+        default="other",
+        help_text="Regional origin for branding and curation"
     )
 
     # ---------- MEDIA ----------
@@ -130,6 +146,12 @@ class Snack(BaseModel):
         validators=[MinValueValidator(ZERO)]
     )
 
+    # ---------- ORDER RULES ----------
+    min_order_qty = models.PositiveIntegerField(
+        default=1,
+        help_text="Minimum quantity required for delivery (trust & UX)"
+    )
+
     # Marketing / UI fields (non-breaking defaults)
     offers = models.TextField(blank=True, default="", help_text="Promotional offer text shown on product card")
     is_best_buy = models.BooleanField(default=False, help_text="Flag to show a prominent badge on frontend")
@@ -152,6 +174,12 @@ class Snack(BaseModel):
         max_length=120,
         blank=True,
         help_text="Wholesaler / Partner (internal)"
+    )
+
+    # ---------- PAIRING SUGGESTIONS ----------
+    pairs_with = models.JSONField(
+        default=list,
+        help_text="e.g. ['Idli', 'Sambar'] - items this snack pairs well with"
     )
 
     class Meta:
@@ -185,6 +213,15 @@ class Snack(BaseModel):
     @property
     def latest_batch(self):
         return self.batches.filter(received=True).order_by("-produced_at").first()
+
+    def next_consumable_batch(self):
+        """
+        FIFO: Consume oldest received batch first to minimize expiry risk.
+        Returns the oldest batch with remaining units.
+        """
+        return self.batches.filter(
+            received=True, units_remaining__gt=0
+        ).order_by("produced_at").first()
 
     def cost_per_pack(self) -> Decimal:
         """
@@ -336,3 +373,121 @@ def recompute_snack_stock(sender, instance, **kwargs):
     if snack.stock_qty != total:
         snack.stock_qty = total
         snack.save(update_fields=["stock_qty"])
+
+
+# ======================================================
+# SNACK COMBO (BUNDLE PRODUCT)
+# ======================================================
+
+class SnackCombo(BaseModel):
+    """
+    Bundled snack packages for revenue generation.
+
+    Example: "Evening Tea Box" - 1 Murukku + 1 Mixture + 1 Sweet = ₹129
+    """
+
+    # ---------- CORE ----------
+    name = models.CharField(max_length=120, unique=True)
+    description = models.TextField(blank=True)
+
+    # ---------- MEDIA ----------
+    image = models.ImageField(
+        upload_to="combos/",
+        blank=True,
+        null=True
+    )
+
+    # ---------- PRICING ----------
+    selling_price = models.DecimalField(
+        max_digits=8,
+        decimal_places=2,
+        validators=[MinValueValidator(ZERO)]
+    )
+
+    # ---------- FLAGS ----------
+    is_featured = models.BooleanField(default=False)
+
+    class Meta:
+        ordering = ["name"]
+
+    def __str__(self):
+        return self.name
+
+    def save(self, *args, **kwargs):
+        from core.utils import generate_and_set_code
+
+        if not getattr(self, 'code', None):
+            for _ in range(3):
+                try:
+                    generate_and_set_code(self, "CB", "code", 4)
+                    break
+                except Exception:
+                    continue
+
+        super().save(*args, **kwargs)
+
+    @property
+    def is_available(self):
+        """Combo is available if all constituent snacks are available and active."""
+        return (
+            self.is_active and
+            all(item.snack.is_available for item in self.items.all())
+        )
+
+    @property
+    def availability_status(self):
+        if not self.is_active:
+            return "Inactive"
+        if not self.is_available:
+            return "Out of Stock"
+        return "Available"
+
+    @property
+    def total_items(self):
+        """Total number of individual snack packs in this combo."""
+        return sum(item.quantity for item in self.items.all())
+
+    @property
+    def image_url(self):
+        return self.image.url if self.image else None
+
+
+# ======================================================
+# SNACK COMBO ITEM (LINK SNACKS TO COMBO)
+# ======================================================
+
+class SnackComboItem(models.Model):
+    """
+    Individual snack within a combo bundle.
+    """
+
+    id = models.BigAutoField(primary_key=True)
+
+    combo = models.ForeignKey(
+        SnackCombo,
+        related_name="items",
+        on_delete=models.CASCADE
+    )
+
+    snack = models.ForeignKey(
+        Snack,
+        related_name="combo_items",
+        on_delete=models.CASCADE
+    )
+
+    quantity = models.PositiveIntegerField(
+        default=1,
+        validators=[MinValueValidator(1)],
+        help_text="Number of packs of this snack in the combo"
+    )
+
+    class Meta:
+        unique_together = ("combo", "snack")
+        ordering = ["combo", "snack__name"]
+
+    def __str__(self):
+        return f"{self.combo.name} — {self.quantity}x {self.snack.name}"
+
+    def clean(self):
+        if self.quantity < 1:
+            raise ValidationError("Quantity must be at least 1")

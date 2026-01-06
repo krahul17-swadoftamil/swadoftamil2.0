@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { useCart } from "../context/CartContext";
 import { resolveMediaUrl } from "../utils/media";
 
@@ -24,21 +25,35 @@ export default function SnackPickerModal({
     return () => window.removeEventListener("keydown", esc);
   }, [open, onClose]);
 
-  if (!open) return null;
+  if (!open) return null; // Keep for now
 
   return (
-    <div
-      className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center"
-      onClick={onClose}
-    >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        className="
-          w-full sm:max-w-3xl
-          bg-card rounded-t-3xl sm:rounded-2xl
-          overflow-hidden flex flex-col
-        "
-      >
+    <AnimatePresence>
+      {open && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.2 }}
+          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center"
+          onClick={onClose}
+        >
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.9, y: 20 }}
+            transition={{ 
+              duration: 0.3, 
+              ease: "easeOut",
+              scale: { type: "spring", damping: 25, stiffness: 300 }
+            }}
+            onClick={(e) => e.stopPropagation()}
+            className="
+              w-full sm:max-w-3xl
+              bg-card rounded-t-3xl sm:rounded-2xl
+              overflow-hidden flex flex-col
+            "
+          >
         {/* ================= HEADER ================= */}
         <div className="flex items-center justify-between p-4 border-b border-subtle">
           <h3 className="text-lg font-semibold">
@@ -113,7 +128,9 @@ export default function SnackPickerModal({
         <div className="border-t border-subtle p-3 text-xs text-muted text-center">
           Snacks are optional add-ons · Do not affect combo contents
         </div>
-      </div>
-    </div>
+        </motion.div>
+      </motion.div>
+    )}
+    </AnimatePresence>
   );
 }

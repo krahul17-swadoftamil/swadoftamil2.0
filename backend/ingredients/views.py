@@ -1,6 +1,8 @@
 from decimal import Decimal
 
-from django.db.models import F, Sum, Count, DecimalField, ExpressionWrapper
+from django.db.models import (
+    F, Sum, Count, DecimalField, ExpressionWrapper, Q
+)
 from rest_framework.viewsets import ReadOnlyModelViewSet
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
@@ -10,10 +12,10 @@ from rest_framework.filters import SearchFilter, OrderingFilter
 from .models import Ingredient
 from .serializers import IngredientSerializer
 
+# ======================================================
+# CONSTANTS
+# ======================================================
 
-# ======================================================
-# ERP CONSTANTS (BASE UNITS ONLY)
-# ======================================================
 ZERO = Decimal("0.000")
 
 LOW_STOCK_LIMITS = {
@@ -24,27 +26,34 @@ LOW_STOCK_LIMITS = {
 
 
 # ======================================================
-# INGREDIENT VIEWSET (ERP SOURCE OF TRUTH)
+# INGREDIENT VIEWSET (ERP READ API)
 # ======================================================
+
 class IngredientViewSet(ReadOnlyModelViewSet):
     """
-    Ingredient = ERP truth.
+    Ingredient = ERP truth (READ ONLY)
 
     ✔ Stock
     ✔ Cost
     ✔ Inventory value
+    ✔ Availability signals
     ❌ No mutation
-    ❌ No food logic
+    ❌ No order logic
     """
 
-    queryset = Ingredient.objects.filter(is_active=True)
-    serializer_class = IngredientSerializer
     permission_classes = [IsAuthenticated]
+    serializer_class = IngredientSerializer
 
     filter_backends = (SearchFilter, OrderingFilter)
-    search_fields = ("name",)
+    search_fields = ("name", "code")
     ordering_fields = ("name", "stock_qty", "cost_per_unit")
     ordering = ("name",)
+
+    def get_queryset(self):
+        """
+        Centralized base queryset.
+        """
+        return Ingredient.objects.filter(is_active=True)
 
     # --------------------------------------------------
     # LOW STOCK (BUSINESS SIGNAL)
@@ -53,16 +62,18 @@ class IngredientViewSet(ReadOnlyModelViewSet):
     def low_stock(self, request):
         """
         Ingredients nearing depletion.
+        Uses DB filtering per unit type.
         """
-        low_items = [
-            ing for ing in self.get_queryset()
-            if ing.stock_qty <= LOW_STOCK_LIMITS.get(ing.unit, ZERO)
-            and ing.stock_qty > ZERO
-        ]
+
+        qs = self.get_queryset().filter(
+            Q(unit="kg", stock_qty__gt=ZERO, stock_qty__lte=LOW_STOCK_LIMITS["kg"]) |
+            Q(unit="ltr", stock_qty__gt=ZERO, stock_qty__lte=LOW_STOCK_LIMITS["ltr"]) |
+            Q(unit="pcs", stock_qty__gt=ZERO, stock_qty__lte=LOW_STOCK_LIMITS["pcs"])
+        )
 
         return Response({
-            "count": len(low_items),
-            "results": self.get_serializer(low_items, many=True).data
+            "count": qs.count(),
+            "results": self.get_serializer(qs, many=True).data,
         })
 
     # --------------------------------------------------
@@ -74,7 +85,7 @@ class IngredientViewSet(ReadOnlyModelViewSet):
 
         return Response({
             "count": qs.count(),
-            "results": self.get_serializer(qs, many=True).data
+            "results": self.get_serializer(qs, many=True).data,
         })
 
     # --------------------------------------------------
@@ -85,40 +96,52 @@ class IngredientViewSet(ReadOnlyModelViewSet):
         qs = self.get_queryset()
 
         inventory_value_expr = ExpressionWrapper(
-            F("stock_qty") * F("cost_per_unit"),
+            F("_stock_qty") * F("cost_per_unit"),
             output_field=DecimalField(max_digits=14, decimal_places=2),
         )
 
         totals = qs.aggregate(
             total_inventory_value=Sum(inventory_value_expr),
-            total_quantity=Sum("stock_qty"),
+            total_quantity=Sum("_stock_qty"),
             total_ingredients=Count("id"),
         )
 
-        # -------- unit-wise breakdown --------
-        unit_stats = {}
-        low_stock_count = 0
-        out_of_stock_count = 0
-
-        for ing in qs:
-            unit_stats.setdefault(
-                ing.unit,
-                {"count": 0, "total_qty": ZERO}
+        # -------- unit-wise aggregation --------
+        unit_rows = (
+            qs.values("unit")
+            .annotate(
+                count=Count("id"),
+                total_qty=Sum("_stock_qty"),
+                low_stock=Count(
+                    "id",
+                    filter=Q(
+                        _stock_qty__gt=ZERO
+                    ) & (
+                        Q(unit="kg", _stock_qty__lte=LOW_STOCK_LIMITS["kg"]) |
+                        Q(unit="ltr", _stock_qty__lte=LOW_STOCK_LIMITS["ltr"]) |
+                        Q(unit="pcs", _stock_qty__lte=LOW_STOCK_LIMITS["pcs"])
+                    )
+                ),
+                out_of_stock=Count(
+                    "id",
+                    filter=Q(_stock_qty__lte=ZERO)
+                ),
             )
+        )
 
-            unit_stats[ing.unit]["count"] += 1
-            unit_stats[ing.unit]["total_qty"] += ing.stock_qty
-
-            if ing.stock_qty <= ZERO:
-                out_of_stock_count += 1
-            elif ing.stock_qty <= LOW_STOCK_LIMITS.get(ing.unit, ZERO):
-                low_stock_count += 1
+        unit_breakdown = {
+            row["unit"]: {
+                "count": row["count"],
+                "total_qty": row["total_qty"] or ZERO,
+                "low_stock": row["low_stock"],
+                "out_of_stock": row["out_of_stock"],
+            }
+            for row in unit_rows
+        }
 
         return Response({
             "total_inventory_value": totals["total_inventory_value"] or Decimal("0.00"),
             "total_quantity": totals["total_quantity"] or ZERO,
             "total_ingredients": totals["total_ingredients"] or 0,
-            "low_stock_count": low_stock_count,
-            "out_of_stock_count": out_of_stock_count,
-            "unit_breakdown": unit_stats,
+            "unit_breakdown": unit_breakdown,
         })

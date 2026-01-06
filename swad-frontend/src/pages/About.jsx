@@ -2,6 +2,15 @@ import { motion, useReducedMotion } from "framer-motion";
 import { Link } from "react-router-dom";
 import { useEffect, useState } from "react";
 
+/* ================= SUPPRESS FRAMER MOTION WARNING ================= */
+const originalWarn = console.warn;
+console.warn = (...args) => {
+  if (args[0]?.includes?.("You have Reduced Motion enabled")) {
+    return; // Suppress this specific warning
+  }
+  originalWarn(...args);
+};
+
 /* ======================================================
    ABOUT — SWAD OF TAMIL (PREMIUM + TRUST + CTA)
 ====================================================== */

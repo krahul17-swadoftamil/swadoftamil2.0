@@ -1,23 +1,20 @@
 import {
   createContext,
   useContext,
-  useMemo,
   useReducer,
+  useMemo,
   useEffect,
   useRef,
-  useState,
 } from "react";
 import { api } from "../api";
 
 /* ======================================================
-   CartContext — ERP-Grade (FINAL, CLEAN)
+   CartContext — FINAL (Order API Aligned)
 ====================================================== */
 
 const CartContext = createContext(null);
 
-/* ======================================================
-   INITIAL STATE
-====================================================== */
+/* ================= INITIAL STATE ================= */
 
 const initialState = {
   combos: [],
@@ -25,266 +22,169 @@ const initialState = {
   snacks: [],
   checkoutOpen: false,
   isPlacingOrder: false,
+  lastAddedItem: null, // For animation
 };
 
-/* ======================================================
-   HELPERS
-====================================================== */
+/* ================= HELPERS ================= */
 
-function normalize(obj) {
-  return {
-    id: obj.id,
-    name: obj.name,
-    price: Math.round(
-      Number(obj.selling_price ?? obj.price ?? 0)
-    ),
-    image: obj.image ?? null,
-  };
-}
+const normalize = (obj) => ({
+  id: obj.id,
+  name: obj.name,
+  price: Math.round(Number(obj.selling_price ?? obj.price ?? 0)),
+  image: obj.image ?? null,
+});
 
-function upsert(list, item, qty) {
-  if (qty <= 0) {
-    return list.filter((x) => x.id !== item.id);
-  }
-
+const upsert = (list, item, qty) => {
+  if (qty <= 0) return list.filter((x) => x.id !== item.id);
   const exists = list.find((x) => x.id === item.id);
-  if (exists) {
-    return list.map((x) =>
-      x.id === item.id ? { ...x, qty } : x
-    );
-  }
+  return exists
+    ? list.map((x) => (x.id === item.id ? { ...x, qty } : x))
+    : [...list, { ...item, qty }];
+};
 
-  return [...list, { ...item, qty }];
-}
+const inc = (list, id) =>
+  list.map((x) => (x.id === id ? { ...x, qty: x.qty + 1 } : x));
 
-function inc(list, id) {
-  return list.map((x) =>
-    x.id === id ? { ...x, qty: x.qty + 1 } : x
-  );
-}
-
-function dec(list, id) {
-  return list
-    .map((x) =>
-      x.id === id ? { ...x, qty: x.qty - 1 } : x
-    )
+const dec = (list, id) =>
+  list
+    .map((x) => (x.id === id ? { ...x, qty: x.qty - 1 } : x))
     .filter((x) => x.qty > 0);
-}
 
-/* ======================================================
-   REDUCER
-====================================================== */
+/* ================= REDUCER ================= */
 
 function reducer(state, action) {
   switch (action.type) {
-    /* ===== COMBOS ===== */
+    /* COMBOS */
     case "SET_COMBO":
-      return {
-        ...state,
-        combos: upsert(
-          state.combos,
-          action.item,
-          action.qty
-        ),
-      };
+      return { ...state, combos: upsert(state.combos, action.item, action.qty) };
     case "INC_COMBO":
       return { ...state, combos: inc(state.combos, action.id) };
     case "DEC_COMBO":
       return { ...state, combos: dec(state.combos, action.id) };
     case "REMOVE_COMBO":
-      return {
-        ...state,
-        combos: state.combos.filter((c) => c.id !== action.id),
-      };
+      return { ...state, combos: state.combos.filter((x) => x.id !== action.id) };
 
-    /* ===== ITEMS ===== */
+    /* ITEMS */
     case "SET_ITEM":
-      return {
-        ...state,
-        items: upsert(
-          state.items,
-          action.item,
-          action.qty
-        ),
-      };
+      return { ...state, items: upsert(state.items, action.item, action.qty) };
     case "INC_ITEM":
       return { ...state, items: inc(state.items, action.id) };
     case "DEC_ITEM":
       return { ...state, items: dec(state.items, action.id) };
     case "REMOVE_ITEM":
-      return {
-        ...state,
-        items: state.items.filter((i) => i.id !== action.id),
-      };
+      return { ...state, items: state.items.filter((x) => x.id !== action.id) };
 
-    /* ===== SNACKS ===== */
+    /* SNACKS */
     case "SET_SNACK":
-      return {
-        ...state,
-        snacks: upsert(
-          state.snacks,
-          action.item,
-          action.qty
-        ),
-      };
+      return { ...state, snacks: upsert(state.snacks, action.item, action.qty) };
     case "INC_SNACK":
       return { ...state, snacks: inc(state.snacks, action.id) };
     case "DEC_SNACK":
       return { ...state, snacks: dec(state.snacks, action.id) };
     case "REMOVE_SNACK":
-      return {
-        ...state,
-        snacks: state.snacks.filter((s) => s.id !== action.id),
-      };
+      return { ...state, snacks: state.snacks.filter((x) => x.id !== action.id) };
 
-    /* ===== CHECKOUT ===== */
+    /* CHECKOUT */
     case "OPEN_CHECKOUT":
       return { ...state, checkoutOpen: true };
     case "CLOSE_CHECKOUT":
       return { ...state, checkoutOpen: false };
 
-    /* ===== ORDER ===== */
+    /* ORDER */
     case "ORDER_START":
       return { ...state, isPlacingOrder: true };
     case "ORDER_SUCCESS":
-      return { ...initialState };
+      return { 
+        ...initialState, 
+        checkoutOpen: state.checkoutOpen // Keep checkout open for success feedback
+      };
     case "ORDER_END":
       return { ...state, isPlacingOrder: false };
+
+    /* ANIMATION */
+    case "ITEM_ADDED":
+      return { ...state, lastAddedItem: action.item };
+    case "CLEAR_ANIMATION":
+      return { ...state, lastAddedItem: null };
 
     default:
       return state;
   }
 }
 
-/* ======================================================
-   PROVIDER
-====================================================== */
+/* ================= PROVIDER ================= */
 
 export function CartProvider({ children }) {
-  const [state, dispatch] = useReducer(
-    reducer,
-    initialState
+  const [state, dispatch] = useReducer(reducer, initialState);
+  const saveTimer = useRef(null);
+
+  /* ---------- SELECTORS ---------- */
+
+  const itemCount = useMemo(
+    () =>
+      [...state.combos, ...state.items, ...state.snacks].reduce(
+        (s, x) => s + x.qty,
+        0
+      ),
+    [state]
   );
 
-  const [savedCartMeta, setSavedCartMeta] = useState(() => {
-    try {
-      return JSON.parse(localStorage.getItem("swad_cart_meta")) || {};
-    } catch {
-      return {};
-    }
-  });
-  const saveTimer = useRef();
+  const total = useMemo(
+    () =>
+      [...state.combos, ...state.items, ...state.snacks].reduce(
+        (s, x) => s + x.price * x.qty,
+        0
+      ),
+    [state]
+  );
 
-  /* ================= COMBOS ================= */
+  // Free delivery threshold
+  const FREE_DELIVERY_THRESHOLD = 200;
+  const freeDeliveryProgress = useMemo(() => {
+    if (total >= FREE_DELIVERY_THRESHOLD) return null;
+    return FREE_DELIVERY_THRESHOLD - total;
+  }, [total]);
+
+  // Suggested add-ons (simple logic - could be more sophisticated)
+  const suggestedAddons = useMemo(() => {
+    if (!state.snacks.length && total > 50) {
+      return [
+        { type: 'snack', name: 'Chutney', price: 25, reason: 'Perfect with idlis' },
+        { type: 'snack', name: 'Extra Sambar', price: 30, reason: 'More authentic taste' }
+      ];
+    }
+    return [];
+  }, [state.snacks, total]);
+
+  /* ---------- ADD WITH ANIMATION ---------- */
 
   const addCombo = (combo, qty = 1) => {
-    const item = normalize(combo);
-    const existing = state.combos.find(
-      (c) => String(c.id) === String(item.id)
-    );
-    const newQty = (existing?.qty || 0) + qty;
-
-    dispatch({
-      type: "SET_COMBO",
-      item,
-      qty: newQty,
-    });
+    dispatch({ type: "SET_COMBO", item: normalize(combo), qty });
+    dispatch({ type: "ITEM_ADDED", item: normalize(combo) });
   };
 
-  // Set combo to an exact quantity (used by some components)
-  const setCombo = (comboObj, qty = 1) => {
-    const item = normalize(comboObj);
-    const q = Number(qty) || 0;
-    dispatch({ type: "SET_COMBO", item, qty: q });
+  const addItem = (item, qty = 1) => {
+    dispatch({ type: "SET_ITEM", item: normalize(item), qty });
+    dispatch({ type: "ITEM_ADDED", item: normalize(item) });
   };
 
-  const incCombo = (id) =>
-    dispatch({ type: "INC_COMBO", id });
-  const decCombo = (id) =>
-    dispatch({ type: "DEC_COMBO", id });
-  const removeCombo = (id) =>
-    dispatch({ type: "REMOVE_COMBO", id });
-
-  /* ================= ITEMS ================= */
-
-  const addItem = (itemObj, qty = 1) => {
-    const item = normalize(itemObj);
-    const existing = state.items.find(
-      (i) => String(i.id) === String(item.id)
-    );
-    const newQty = (existing?.qty || 0) + qty;
-
-    dispatch({
-      type: "SET_ITEM",
-      item,
-      qty: newQty,
-    });
+  const addSnack = (snack, qty = 1) => {
+    dispatch({ type: "SET_SNACK", item: normalize(snack), qty });
+    dispatch({ type: "ITEM_ADDED", item: normalize(snack) });
   };
 
-  const incItem = (id) =>
-    dispatch({ type: "INC_ITEM", id });
-  const decItem = (id) =>
-    dispatch({ type: "DEC_ITEM", id });
-  const removeItem = (id) =>
-    dispatch({ type: "REMOVE_ITEM", id });
+  /* ---------- CHECKOUT ---------- */
 
-  /* ================= SNACKS ================= */
+  const openCheckout = () => dispatch({ type: "OPEN_CHECKOUT" });
+  const closeCheckout = () => dispatch({ type: "CLOSE_CHECKOUT" });
 
-  const addSnack = (snackObj, qty = 1) => {
-    const item = normalize(snackObj);
-    const existing = state.snacks.find(
-      (s) => String(s.id) === String(item.id)
-    );
-    const newQty = (existing?.qty || 0) + qty;
+  /* ---------- PLACE ORDER ---------- */
 
-    dispatch({
-      type: "SET_SNACK",
-      item,
-      qty: newQty,
-    });
-  };
-
-  const incSnack = (id) =>
-    dispatch({ type: "INC_SNACK", id });
-  const decSnack = (id) =>
-    dispatch({ type: "DEC_SNACK", id });
-  const removeSnack = (id) =>
-    dispatch({ type: "REMOVE_SNACK", id });
-
-  /* ================= SELECTORS ================= */
-
-  const itemCount = useMemo(() => {
-    const sum = (arr) =>
-      arr.reduce((s, i) => s + i.qty, 0);
-    return (
-      sum(state.combos) +
-      sum(state.items) +
-      sum(state.snacks)
-    );
-  }, [state]);
-
-  const total = useMemo(() => {
-    const sum = (arr) =>
-      arr.reduce((s, i) => s + i.price * i.qty, 0);
-    return (
-      sum(state.combos) +
-      sum(state.items) +
-      sum(state.snacks)
-    );
-  }, [state]);
-
-  /* ================= CHECKOUT ================= */
-
-  const openCheckout = () =>
-    dispatch({ type: "OPEN_CHECKOUT" });
-  const closeCheckout = () =>
-    dispatch({ type: "CLOSE_CHECKOUT" });
-
-  /* ================= ORDER ================= */
-
-  // Accept optional `customer` object: { name, phone, email, address }
-  const placeOrderAsync = async (customer = null) => {
-    if (!itemCount || state.isPlacingOrder) return;
+  const placeOrderAsync = async (customer) => {
+    // ✔ Guard: prevent duplicate orders
+    if (!itemCount || state.isPlacingOrder) {
+      throw new Error("Order is already being placed");
+    }
 
     dispatch({ type: "ORDER_START" });
 
@@ -295,170 +195,94 @@ export function CartProvider({ children }) {
           quantity: c.qty,
         })),
         items: state.items.map((i) => ({
-          item_id: i.id,
+          id: i.id,
           quantity: i.qty,
         })),
         snacks: state.snacks.map((s) => ({
           snack_id: s.id,
           quantity: s.qty,
         })),
-      };
-
-      if (customer) {
-        payload.customer = {
+        payment_method: "cod",
+        customer: {
+          phone: customer.phone,          // 🔒 mandatory
           name: customer.name || "",
-          phone: customer.phone || "",
           email: customer.email || "",
           address: customer.address || "",
-        };
-      }
+        },
+      };
 
-      const res = await api.post("/orders/", payload);
+      const order = await api.post("/orders/", payload);
+      
+      // ✔ Clear cart IMMEDIATELY on success
       dispatch({ type: "ORDER_SUCCESS" });
-      return res;
-    } finally {
+      
+      return order;
+    } catch (error) {
+      // ✔ Don't clear cart on error—allow retry
       dispatch({ type: "ORDER_END" });
+      throw error;
     }
   };
 
-  /* ================= CART PERSISTENCE ================= */
-  function genSessionKey() {
-    return `sess-${Math.random().toString(36).slice(2, 10)}`;
-  }
+  /* ---------- OPTIONAL CART AUTOSAVE ---------- */
 
-  function buildCartPayload() {
-    const payload = {
-      id: savedCartMeta.id,
-      session_key: savedCartMeta.session_key || undefined,
-      total_amount: total,
-      metadata: {},
-      lines: [],
-    };
-
-    (state.combos || []).forEach((c) => {
-      payload.lines.push({
-        type: "combo",
-        combo: c.id,
-        quantity: c.qty,
-        unit_price: c.price,
-      });
-    });
-
-    (state.items || []).forEach((i) => {
-      payload.lines.push({
-        type: "item",
-        prepared_item: i.id,
-        quantity: i.qty,
-        unit_price: i.price,
-      });
-    });
-
-    (state.snacks || []).forEach((s) => {
-      payload.lines.push({
-        type: "snack",
-        snack_id: s.id,
-        snack_name: s.name,
-        quantity: s.qty,
-        unit_price: s.price,
-      });
-    });
-
-    return payload;
-  }
-
-  const saveCart = async () => {
-    try {
-      // Ensure we have a session key
-      if (!savedCartMeta.session_key) {
-        const sk = genSessionKey();
-        const meta = { ...(savedCartMeta || {}), session_key: sk };
-        setSavedCartMeta(meta);
-        localStorage.setItem("swad_cart_meta", JSON.stringify(meta));
-      }
-
-      const payload = buildCartPayload();
-      const res = await api.post("/orders/cart/", payload);
-
-      if (res?.id || res?.session_key) {
-        const meta = { ...(savedCartMeta || {}), id: res.id, session_key: res.session_key };
-        setSavedCartMeta(meta);
-        localStorage.setItem("swad_cart_meta", JSON.stringify(meta));
-      }
-
-      return res;
-    } catch (err) {
-      // fail silently for UX; console for debugging
-      console.error("Failed to save cart:", err);
-      return null;
-    }
-  };
-
-  const loadCart = async (opts = {}) => {
-    try {
-      const meta = savedCartMeta || {};
-      const session = opts.session || meta.session_key;
-      const customer = opts.customer;
-
-      if (!session && !customer) return null;
-
-      const q = session ? { session } : { customer };
-      const res = await api.get("/orders/cart/", q);
-      return res;
-    } catch (err) {
-      console.error("Failed to load cart:", err);
-      return null;
-    }
-  };
-
-  const clearSavedCart = async () => {
-    try {
-      const meta = savedCartMeta || {};
-      if (meta.id) {
-        await api.delete(`/orders/cart/?id=${meta.id}`);
-      }
-    } catch (err) {
-      console.error(err);
-    }
-    setSavedCartMeta({});
-    localStorage.removeItem("swad_cart_meta");
-  };
-
-  // Auto-save (debounced) when cart changes
   useEffect(() => {
     if (saveTimer.current) clearTimeout(saveTimer.current);
+
     saveTimer.current = setTimeout(() => {
-      // do not auto-save when placing order or empty
-      if (state.isPlacingOrder) return;
-      saveCart();
-    }, 1000);
+      if (!itemCount || state.isPlacingOrder) return;
+
+      api.post("/orders/cart/", {
+        total_amount: total,
+        lines: [
+          ...state.combos.map((c) => ({
+            type: "combo",
+            combo: c.id,
+            quantity: c.qty,
+            unit_price: c.price,
+          })),
+          ...state.items.map((i) => ({
+            type: "item",
+            item: i.id,
+            quantity: i.qty,
+            unit_price: i.price,
+          })),
+          ...state.snacks.map((s) => ({
+            type: "snack",
+            snack_id: s.id,
+            snack_name: s.name,
+            quantity: s.qty,
+            unit_price: s.price,
+          })),
+        ],
+      });
+    }, 800);
 
     return () => clearTimeout(saveTimer.current);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [JSON.stringify(state.combos), JSON.stringify(state.items), JSON.stringify(state.snacks), total]);
+  }, [state, total, itemCount]);
 
-  /* ================= PUBLIC API ================= */
+  /* ---------- CONTEXT API ---------- */
 
   const value = {
     cart: state,
 
-    /* Combos */
+    /* Add */
     addCombo,
-    setCombo,
-    incCombo,
-    decCombo,
-    removeCombo,
-
-    /* Items */
     addItem,
-    incItem,
-    decItem,
-    removeItem,
-
-    /* Snacks */
     addSnack,
-    incSnack,
-    decSnack,
-    removeSnack,
+
+    /* Modify */
+    incCombo: (id) => dispatch({ type: "INC_COMBO", id }),
+    decCombo: (id) => dispatch({ type: "DEC_COMBO", id }),
+    removeCombo: (id) => dispatch({ type: "REMOVE_COMBO", id }),
+
+    incItem: (id) => dispatch({ type: "INC_ITEM", id }),
+    decItem: (id) => dispatch({ type: "DEC_ITEM", id }),
+    removeItem: (id) => dispatch({ type: "REMOVE_ITEM", id }),
+
+    incSnack: (id) => dispatch({ type: "INC_SNACK", id }),
+    decSnack: (id) => dispatch({ type: "DEC_SNACK", id }),
+    removeSnack: (id) => dispatch({ type: "REMOVE_SNACK", id }),
 
     /* Checkout */
     checkoutOpen: state.checkoutOpen,
@@ -468,6 +292,17 @@ export function CartProvider({ children }) {
     /* Totals */
     itemCount,
     total,
+
+    /* Free Delivery */
+    freeDeliveryProgress,
+    freeDeliveryThreshold: FREE_DELIVERY_THRESHOLD,
+
+    /* Suggestions */
+    suggestedAddons,
+
+    /* Animation */
+    lastAddedItem: state.lastAddedItem,
+    clearAnimation: () => dispatch({ type: "CLEAR_ANIMATION" }),
 
     /* Order */
     placeOrderAsync,
@@ -482,16 +317,12 @@ export function CartProvider({ children }) {
   );
 }
 
-/* ======================================================
-   HOOK
-====================================================== */
+/* ================= HOOK ================= */
 
 export function useCart() {
   const ctx = useContext(CartContext);
   if (!ctx) {
-    throw new Error(
-      "useCart must be used inside CartProvider"
-    );
+    throw new Error("useCart must be used inside CartProvider");
   }
   return ctx;
 }

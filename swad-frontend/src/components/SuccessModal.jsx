@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { motion, AnimatePresence } from "framer-motion";
 
 export default function SuccessModal({ open, order, onClose }) {
   const navigate = useNavigate();
@@ -11,20 +12,34 @@ export default function SuccessModal({ open, order, onClose }) {
     return () => window.removeEventListener("keydown", esc);
   }, [open, onClose]);
 
-  if (!open) return null;
+  if (!open) return null; // Keep for now, will remove for AnimatePresence
 
   const id = order?.id || null;
   const orderNumber = order?.order_number || id;
 
   return (
-    <div
-      className="fixed inset-0 z-60 bg-black/50 flex items-center justify-center"
-      onClick={onClose}
-    >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        className="bg-card p-6 rounded-2xl max-w-sm w-full text-center"
-      >
+    <AnimatePresence>
+      {open && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.2 }}
+          className="fixed inset-0 z-60 bg-black/50 flex items-center justify-center"
+          onClick={onClose}
+        >
+          <motion.div
+            initial={{ opacity: 0, scale: 0.8, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.8, y: 20 }}
+            transition={{ 
+              duration: 0.4, 
+              ease: "easeOut",
+              scale: { type: "spring", damping: 20, stiffness: 200 }
+            }}
+            onClick={(e) => e.stopPropagation()}
+            className="bg-card p-6 rounded-2xl max-w-sm w-full text-center"
+          >
         <div className="text-4xl mb-2">✅</div>
         <h2 className="text-lg font-semibold">Order placed</h2>
         <p className="text-sm text-muted mt-2">Thank you — your order is received.</p>
@@ -56,7 +71,9 @@ export default function SuccessModal({ open, order, onClose }) {
             </button>
           )}
         </div>
-      </div>
-    </div>
+        </motion.div>
+      </motion.div>
+    )}
+    </AnimatePresence>
   );
 }

@@ -1,33 +1,50 @@
-import { memo } from "react";
+import { memo, useState } from "react";
+import { motion } from "framer-motion";
 import { useCart } from "../context/CartContext";
 import { resolveMediaUrl } from "../utils/media";
+import { useEngagement } from "../hooks/useEngagement";
+import { usePersonalization } from "../hooks/usePersonalization";
+import LazyImage from "./LazyImage";
 
 /* ======================================================
-   ComboCard — Premium Breakfast Card (Aligned v2)
-   Data-first • Stable layout • Conversion-safe
+   ComboCard — Premium, Calm, Food-First (v6)
 ====================================================== */
 
-function ComboCard({ combo, onView, compact = false }) {
-  const { addCombo } = useCart();
+function ComboCard({
+  combo,
+  combos = [],
+  onView,
+  badge = null,
+  featured = false,
+  size = "normal",
+}) {
+  const { cart, addCombo, incCombo } = useCart();
+  const [pressed, setPressed] = useState(false);
+  const [bounce, setBounce] = useState(false);
+
+  const { rating } = useEngagement(combo?.id, "combo");
+
+  const { trackView, trackClick } = usePersonalization();
+
+  // Size variants
+  const sizeClasses = {
+    normal: "text-lg",
+    large: "text-xl scale-110",
+  };
+
+  const imageSizeClasses = {
+    normal: "aspect-[5/4]",
+    large: "aspect-[5/4]",
+  };
+
   if (!combo) return null;
 
-  /* ================= IMAGE ================= */
+  /* ================= DATA ================= */
   const image = resolveMediaUrl(
-    combo.primary_image ||
-      combo.image ||
-      combo.image_url
+    combo.image_url || combo.primary_image || combo.image
   );
 
-  /* ================= DATA (BACKEND IS SOURCE) ================= */
   const name = combo.name || "Tamil Breakfast Combo";
-
-  const description = (
-    combo.description ||
-    combo.short_description ||
-    ""
-  )
-    .replace(/\r?\n/g, " • ")
-    .trim();
 
   const price = Number(combo.selling_price || 0);
 
@@ -37,54 +54,66 @@ function ComboCard({ combo, onView, compact = false }) {
     combo.serving_text ||
     null;
 
+  const total_items = Number(combo.total_items || 0);
+
   const inStock =
     combo.available_quantity == null
       ? true
       : Number(combo.available_quantity) > 0;
 
-  /* ================= QUICK ADD ================= */
-  const handleQuickAdd = (e) => {
+  const existing = cart.combos.find((c) => c.id === combo.id);
+  const qty = existing?.qty || 0;
+
+  /* ================= ACTIONS ================= */
+  const handleAdd = (e) => {
     e.stopPropagation();
     if (!inStock) return;
-    addCombo(combo, 1);
+
+    existing ? incCombo(combo.id) : addCombo(combo, 1);
+    trackClick(combo.id, "combo");
+    
+    // Trigger bounce animation
+    setBounce(true);
+    setTimeout(() => setBounce(false), 600);
   };
 
-  /* ================= OPEN DETAIL ================= */
-  const openDetail = () => {
-    onView?.(combo);
+  const handleView = () => {
+    trackView(combo.id, "combo");
+    setPressed(true);
+    setTimeout(() => {
+      setPressed(false);
+      onView?.(combo);
+    }, 90);
   };
 
+  /* ================= UI ================= */
   return (
-    <article
+    <motion.article
       role="button"
       tabIndex={0}
-      aria-label={`View ${name}`}
-      onClick={openDetail}
+      onClick={handleView}
       onKeyDown={(e) =>
-        (e.key === "Enter" || e.key === " ") && openDetail()
+        (e.key === "Enter" || e.key === " ") && handleView()
       }
-      className="
-        group relative cursor-pointer
-        rounded-3xl overflow-hidden
-        bg-card border border-subtle
-        transition-all duration-300
-        hover:-translate-y-1 hover:shadow-[0_12px_40px_rgba(0,0,0,0.25)]
+      aria-label={`View ${name}`}
+      className={`
+        relative flex flex-col overflow-hidden
+        rounded-2xl bg-card border border-subtle
         focus:outline-none focus:ring-2 focus:ring-accent/40
-        flex flex-col h-full
-      "
+        ${pressed ? "scale-[0.98]" : ""}
+        ${featured ? "ring-2 ring-accent/30" : ""}
+        ${size === "large" ? "transform scale-110" : ""}
+      `}
+      whileHover={{ y: -4, scale: size === "large" ? 1.02 : 1.02 }}
+      transition={{ type: "spring", stiffness: 200, damping: 26 }}
     >
       {/* ================= IMAGE ================= */}
-      <div className="relative h-44 w-full bg-surface overflow-hidden">
+      <div className={`relative ${imageSizeClasses[size]} bg-surface overflow-hidden`}>
         {image ? (
-          <img
+          <LazyImage
             src={image}
-            alt={`${name} – authentic Tamil breakfast`}
-            loading="lazy"
-            className="
-              w-full h-full object-cover
-              transition-transform duration-500
-              group-hover:scale-105
-            "
+            alt={name}
+            className="w-full h-full object-cover object-center"
           />
         ) : (
           <div className="h-full flex items-center justify-center text-xs text-muted">
@@ -92,80 +121,77 @@ function ComboCard({ combo, onView, compact = false }) {
           </div>
         )}
 
-        {/* BADGES */}
-        <div className="absolute top-3 left-3 flex gap-2 text-[10px] font-semibold">
-          {combo.is_featured && (
-            <span className="px-2 py-1 rounded-full bg-accent text-black">
-              ⭐ Best Seller
-            </span>
-          )}
+        <div className="absolute inset-0 bg-gradient-to-b from-transparent to-black/35" />
 
+        {/* BADGES - MAX 2 WITH PRIORITY */}
+        <div className="absolute top-3 left-3 flex flex-wrap gap-2 text-[11px] font-semibold">
+          {/* Priority 1: Serves X (only if serves exists) */}
           {serves && (
             <span className="px-2 py-1 rounded-full bg-black/60 text-white">
-              🍽 Serves {serves}
+              Serves {serves}
             </span>
           )}
         </div>
 
-        {/* QUICK ADD */}
+        {/* PRICE - BOTTOM LEFT */}
+        <div className="absolute bottom-3 left-3 bg-black/70 text-white px-3 py-1.5 rounded-full text-sm font-bold">
+          ₹{price.toFixed(0)}
+        </div>
+
+        {/* ADD BUTTON */}
         {inStock && (
-          <button
-            onClick={handleQuickAdd}
-            className="
-              absolute bottom-3 right-3
-              px-4 py-1.5
-              rounded-full text-xs font-semibold
-              bg-accent text-black
-              shadow-lg
-              opacity-0 group-hover:opacity-100
-              transition-opacity
-            "
-            aria-label={`Quick add ${name}`}
+          <motion.div
+            className="absolute bottom-3 right-3"
+            animate={bounce ? { scale: [1, 1.15, 0.95, 1] } : { scale: 1 }}
+            transition={{ duration: 0.4, ease: "easeOut" }}
           >
-            + Add
-          </button>
+            <div className="bg-black/60 backdrop-blur-sm rounded-full px-1 py-1 transition-all duration-200 group">
+              <button
+                onClick={handleAdd}
+                className="
+                  px-3 py-1.5 rounded-full text-xs font-semibold
+                  bg-accent text-black
+                  hover:bg-accent/90
+                  transition-all duration-200
+                  group-hover:px-5
+                "
+              >
+                {qty > 0 ? `+ ${qty}` : "Add Breakfast"}
+              </button>
+            </div>
+          </motion.div>
         )}
       </div>
 
       {/* ================= CONTENT ================= */}
       <div className="p-4 flex flex-col flex-1">
-        {/* TITLE */}
-        <h3 className="text-base font-semibold leading-snug line-clamp-2">
+        {/* COMBO NAME */}
+        <h3 className={`${size === "large" ? "text-xl" : "text-lg"} font-bold leading-snug line-clamp-2 mb-2`}>
           {name}
         </h3>
 
-        {/* DESCRIPTION */}
-        {description && (
-          <p className="text-xs text-muted mt-1 line-clamp-2">
-            {description}
-          </p>
-        )}
+        {/* WHY THIS COMBO */}
+        <p className={`${size === "large" ? "text-base" : "text-sm"} text-accent font-medium mb-4`}>
+          {serves ? `Perfect for ${serves} people` : 
+           total_items >= 3 ? "Complete snack assortment" : 
+           "Traditional South Indian flavors"}
+        </p>
 
-        {/* PRICE — PINNED */}
-        <div className="mt-auto pt-3 flex items-center justify-between">
-          <span className="text-accent text-lg font-bold">
+        {/* PRICE & ADD BUTTON */}
+        <div className="mt-auto flex items-center justify-between">
+          <div className={`${size === "large" ? "text-2xl" : "text-xl"} font-bold text-accent`}>
             ₹{price.toFixed(0)}
-          </span>
-
-          <span
-            className={`text-xs font-medium ${
-              inStock
-                ? "text-green-600"
-                : "text-red-600"
-            }`}
-          >
-            {inStock ? "Fresh today" : "Sold out"}
-          </span>
+          </div>
         </div>
       </div>
 
-      {/* SOLD OUT OVERLAY */}
+      {/* SOLD OUT */}
       {!inStock && (
-        <div className="absolute inset-0 bg-black/55 flex items-center justify-center text-white text-sm font-semibold">
+        <div className="absolute inset-0 bg-black/70 flex items-center justify-center text-white text-sm font-semibold rounded-2xl">
           Sold Out
         </div>
       )}
-    </article>
+    </motion.article>
   );
 }
 

@@ -73,12 +73,15 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    "django.contrib.sites",
 
     # --------------------------------------------------
     # THIRD-PARTY
     # --------------------------------------------------
     "rest_framework",
+    "rest_framework.authtoken",
     "corsheaders",
+    "dj_rest_auth",
 
     # --------------------------------------------------
     # CORE SYSTEM (GLOBAL BOOTSTRAP)
@@ -98,8 +101,9 @@ INSTALLED_APPS = [
 
 
 # ======================================================
-# MIDDLEWARE
+# URL CONFIGURATION
 # ======================================================
+ROOT_URLCONF = "backend.urls"
 MIDDLEWARE = [
     "corsheaders.middleware.CorsMiddleware",
     "django.middleware.security.SecurityMiddleware",
@@ -118,40 +122,79 @@ MIDDLEWARE = [
 CORS_ALLOW_ALL_ORIGINS = DEBUG
 CORS_ALLOW_CREDENTIALS = True
 
-# Production-only explicit origins
-if not DEBUG:
+if DEBUG:
+    # Development: Allow all localhost ports for Vite
+    CORS_ALLOWED_ORIGINS = [
+        "http://localhost:3000",
+        "http://localhost:3001",
+        "http://localhost:3002",
+        "http://localhost:5173",
+        "http://localhost:5174",
+        "http://localhost:5175",
+        "http://localhost:5176",
+        "http://localhost:5177",
+        "http://localhost:5178",
+        "http://localhost:5179",
+        "http://127.0.0.1:3000",
+        "http://127.0.0.1:3001",
+        "http://127.0.0.1:3002",
+        "http://127.0.0.1:5173",
+        "http://127.0.0.1:5174",
+        "http://127.0.0.1:5175",
+        "http://127.0.0.1:5176",
+        "http://127.0.0.1:5177",
+        "http://127.0.0.1:5178",
+        "http://127.0.0.1:5179",
+    ]
+
+    CSRF_TRUSTED_ORIGINS = [
+        "http://localhost:3000",
+        "http://localhost:3001",
+        "http://localhost:3002",
+        "http://localhost:5173",
+        "http://localhost:5174",
+        "http://localhost:5175",
+        "http://localhost:5176",
+        "http://localhost:5177",
+        "http://localhost:5178",
+        "http://localhost:5179",
+        "http://127.0.0.1:3000",
+        "http://127.0.0.1:3001",
+        "http://127.0.0.1:3002",
+        "http://127.0.0.1:5173",
+        "http://127.0.0.1:5174",
+        "http://127.0.0.1:5175",
+        "http://127.0.0.1:5176",
+        "http://127.0.0.1:5177",
+        "http://127.0.0.1:5178",
+        "http://127.0.0.1:5179",
+    ]
+else:
+    # Production: Explicit origins only
     CORS_ALLOWED_ORIGINS = os.getenv(
         "CORS_ALLOWED_ORIGINS",
-        ""
+        "https://swad-of-tamil.vercel.app"
     ).split(",")
-else:
-    CORS_ALLOWED_ORIGINS = []
 
+    CSRF_TRUSTED_ORIGINS = [
+        "https://swadoftamil2-0.onrender.com",
+        "https://swad-of-tamil.vercel.app",
+    ]
 
-# ======================================================
-# URL / WSGI
-# ======================================================
-ROOT_URLCONF = "backend.urls"
-WSGI_APPLICATION = "backend.wsgi.application"
-
-DEBUG = False
-
-ALLOWED_HOSTS = [
-    "swad-backend.onrender.com",
-    "swad-of-tamil.vercel.app",
+# ✔ Allow custom idempotency header + defaults
+CORS_ALLOW_HEADERS = [
+    "accept",
+    "accept-encoding",
+    "authorization",
+    "content-type",
+    "dnt",
+    "origin",
+    "user-agent",
+    "x-csrftoken",
+    "x-requested-with",
+    "x-idempotency-key",  # ← Custom header for duplicate prevention
 ]
 
-CORS_ALLOWED_ORIGINS = [
-    "https://swad-of-tamil.vercel.app",
-]
-
-CSRF_TRUSTED_ORIGINS = [
-    "https://swad-of-tamil.vercel.app",
-]
-
-# ======================================================
-# TEMPLATES (ADMIN ONLY)
-# ======================================================
 TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
@@ -170,22 +213,47 @@ TEMPLATES = [
 
 
 # ======================================================
-# DATABASE (POSTGRES DEFAULT)
+# DJANGO-ALLAUTH CONFIGURATION
 # ======================================================
-DATABASES = {
-    "default": {
-        "ENGINE": os.getenv(
-            "DB_ENGINE",
-            "django.db.backends.postgresql"
-        ),
-        "NAME": os.getenv("DB_NAME", "swad_of_tamil"),
-        "USER": os.getenv("DB_USER", "postgres"),
-        "PASSWORD": os.getenv("DB_PASSWORD", ""),
-        "HOST": os.getenv("DB_HOST", "localhost"),
-        "PORT": os.getenv("DB_PORT", "5432"),
-    }
-}
 
+# Required for allauth
+SITE_ID = 1
+
+# Allauth settings for social login
+ACCOUNT_EMAIL_VERIFICATION = "none"  # Skip email verification for simplicity
+ACCOUNT_LOGIN_METHODS = {"username", "email"}
+ACCOUNT_EMAIL_REQUIRED = False
+
+# ======================================================
+# DATABASE CONFIGURATION
+# ======================================================
+db_engine = os.getenv("DB_ENGINE", "django.db.backends.sqlite3")
+if "postgresql" in db_engine:
+    DATABASES = {
+        "default": {
+            "ENGINE": db_engine,
+            "NAME": os.getenv("DB_NAME"),
+            "USER": os.getenv("DB_USER"),
+            "PASSWORD": os.getenv("DB_PASSWORD"),
+            "HOST": os.getenv("DB_HOST", "localhost"),
+            "PORT": os.getenv("DB_PORT", "5432"),
+        }
+    }
+else:
+    DATABASES = {
+        "default": {
+            "ENGINE": db_engine,
+            "NAME": BASE_DIR / "db.sqlite3",
+        }
+    }
+
+
+# ======================================================
+# AUTHENTICATION
+# ======================================================
+AUTHENTICATION_BACKENDS = [
+    "django.contrib.auth.backends.ModelBackend",
+]
 
 # ======================================================
 # PASSWORD VALIDATION
@@ -240,14 +308,19 @@ REST_FRAMEWORK = {
 # ======================================================
 # SECURITY HARDENING
 # ======================================================
+
 SECURE_BROWSER_XSS_FILTER = True
 SECURE_CONTENT_TYPE_NOSNIFF = True
 X_FRAME_OPTIONS = "DENY"
 
-if not DEBUG:
-    SECURE_SSL_REDIRECT = True
-    SESSION_COOKIE_SECURE = True
-    CSRF_COOKIE_SECURE = True
+SECURE_SSL_REDIRECT = not DEBUG  # ✅ FIX
+
+SESSION_COOKIE_SECURE = not DEBUG
+SESSION_COOKIE_HTTPONLY = True
+SESSION_COOKIE_SAMESITE = "Lax" if DEBUG else "None"
+
+CSRF_COOKIE_SECURE = not DEBUG
+CSRF_COOKIE_SAMESITE = "Lax" if DEBUG else "None"
 
 
 # ======================================================
@@ -270,3 +343,5 @@ LOGGING = {
         },
     },
 }
+
+GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")

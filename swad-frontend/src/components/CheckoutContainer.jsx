@@ -1,11 +1,15 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import { useCart } from "../context/CartContext";
 
 import QuickCheckoutModal from "./QuickCheckoutModal";
 import SuccessModal from "./SuccessModal";
 
 /* ======================================================
-   CheckoutContainer — Global Checkout Orchestrator
+   CheckoutContainer — CLEAN ORCHESTRATOR
+   • Single checkout flow
+   • Centralized state
+   • ERP-aligned
+   • Prevents duplicate orders
 ====================================================== */
 
 export default function CheckoutContainer() {
@@ -13,56 +17,69 @@ export default function CheckoutContainer() {
     checkoutOpen,
     closeCheckout,
     placeOrderAsync,
-    isPlacingOrder,
   } = useCart();
 
+  const [createdOrder, setCreatedOrder] = useState(null);
+
   const [successOpen, setSuccessOpen] = useState(false);
-  const [placedOrder, setPlacedOrder] = useState(null);
+  const [order, setOrder] = useState(null);
+  
+  // ✔ Prevent duplicate orders with ref
+  const orderInFlightRef = useRef(false);
 
   /* ================= PLACE ORDER ================= */
-
   const handlePlace = useCallback(
-    async (customer) => {
-      if (isPlacingOrder) return;
+    async (customerPayload) => {
+      // ✔ Double-submit guard at container level
+      if (orderInFlightRef.current) {
+        throw new Error("Order submission already in progress");
+      }
+
+      orderInFlightRef.current = true;
 
       try {
-        const res = await placeOrderAsync(customer);
+        // placeOrderAsync:
+        // ✔ throws on failure
+        // ✔ returns created order on success
+        // ✔ clears cart on success
+        const createdOrder = await placeOrderAsync(customerPayload);
 
-        closeCheckout();
+        // Store the created order for success display
+        setCreatedOrder(createdOrder);
 
-        if (res) {
-          setPlacedOrder(res);
-          setSuccessOpen(true);
-        }
+        // Don't close checkout here - let QuickCheckoutModal handle success feedback
+        // closeCheckout();
 
-        return res;
-      } catch (err) {
-        alert(err?.message || "Failed to place order");
-        throw err;
+        // Skip success modal - handled by QuickCheckoutModal
+        // setOrder(createdOrder);
+        // setSuccessOpen(true);
+
+        return createdOrder;
+      } finally {
+        orderInFlightRef.current = false;
       }
     },
-    [placeOrderAsync, closeCheckout, isPlacingOrder]
+    [placeOrderAsync, closeCheckout]
   );
 
-  /* ================= UI ================= */
-
+  /* ================= RENDER ================= */
   return (
     <>
-      {/* CHECKOUT MODAL */}
+      {/* ================= CHECKOUT ================= */}
       <QuickCheckoutModal
         open={checkoutOpen}
         onClose={closeCheckout}
         onPlace={handlePlace}
-        placing={isPlacingOrder}
+        createdOrder={createdOrder}
       />
 
-      {/* SUCCESS MODAL */}
+      {/* ================= SUCCESS ================= */}
       <SuccessModal
         open={successOpen}
-        order={placedOrder}
+        order={order}
         onClose={() => {
           setSuccessOpen(false);
-          setPlacedOrder(null);
+          setOrder(null);
         }}
       />
     </>

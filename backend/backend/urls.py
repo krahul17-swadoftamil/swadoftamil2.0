@@ -31,12 +31,20 @@ def api_status(request):
 urlpatterns = [
 
     # ------------------------------
+    # ROOT
+    # ------------------------------
+    path("", lambda request: JsonResponse({"message": "Welcome to Swad of Tamil API", "admin": "/admin/", "api": "/api/"})),
+
+    # ------------------------------
     # HEALTH / STATUS
     # ------------------------------
     path("api/status/", api_status),
 
     # ------------------------------
-    # ADMIN (Custom AdminSite)
+    # DJANGO REST AUTH
+    # ------------------------------
+    path("auth/", include("dj_rest_auth.urls")),
+
     # ------------------------------
     path("admin/", admin.site.urls),
 

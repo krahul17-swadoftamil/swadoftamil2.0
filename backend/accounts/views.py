@@ -1,23 +1,58 @@
 import os
+import json
+import base64
 from datetime import timedelta
+from collections import defaultdict
+import time
 
 from django.conf import settings
 from django.utils import timezone
+from django.contrib.auth import login, logout, get_user_model
+from django.shortcuts import redirect
+from django.urls import reverse
 
 from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.viewsets import ViewSet
+from rest_framework.authentication import SessionAuthentication
+
+from google.auth.transport import requests as google_requests
+from google.oauth2 import id_token
 
 from .models import Customer, OTP, SMSSetting
 from .serializers import (
     SendOTPSerializer,
     VerifyOTPSerializer,
     CustomerSerializer,
+    CustomerUpdateSerializer,
 )
 from .sms import send_sms
 
+User = get_user_model()
+
+# ======================================================
+# RATE LIMITING
+# ======================================================
+# Simple in-memory rate limiter (use Redis in production)
+otp_rate_limits = defaultdict(list)
+
+def check_rate_limit(phone, max_requests=3, window_seconds=300):  # 3 requests per 5 minutes
+    """Check if phone number has exceeded rate limit"""
+    now = time.time()
+    phone_limits = otp_rate_limits[phone]
+
+    # Remove old requests outside the window
+    phone_limits[:] = [req_time for req_time in phone_limits if now - req_time < window_seconds]
+
+    if len(phone_limits) >= max_requests:
+        return False, window_seconds - (now - phone_limits[0]) if phone_limits else 0
+
+    phone_limits.append(now)
+    return True, 0
+
+from django.middleware.csrf import get_token
 
 # ======================================================
 # CONSTANTS
@@ -30,19 +65,51 @@ def is_dev_mode():
     return settings.DEBUG or os.environ.get("ENV") == "development"
 
 
+def generate_otp():
+    """6-digit numeric OTP"""
+    return str(int.from_bytes(os.urandom(3), "big") % 1000000).zfill(6)
+
+
+def get_or_create_user_for_customer(customer, username_hint):
+    """
+    Ensures a Django auth user exists and is linked.
+    """
+    if customer.user:
+        return customer.user
+
+    username = username_hint
+    suffix = 0
+    while User.objects.filter(username=username).exists():
+        suffix += 1
+        username = f"{username_hint}_{suffix}"
+
+    user = User.objects.create_user(
+        username=username,
+        email=customer.email or "",
+        password=None,
+    )
+    user.set_unusable_password()
+    user.save()
+
+    customer.user = user
+    customer.save(update_fields=["user"])
+    return user
+
+
 # ======================================================
 # AUTH / OTP VIEWSET
 # ======================================================
 class AuthViewSet(ViewSet):
-    """
-    Phone + OTP authentication (passwordless).
-
-    FLOW:
-    1. send_otp
-    2. verify_otp
-    """
-
     permission_classes = [AllowAny]
+
+    # --------------------------------------------------
+    # CSRF TOKEN
+    # --------------------------------------------------
+    @action(detail=False, methods=["get"])
+    def csrf(self, request):
+        """Get CSRF token for frontend"""
+        token = get_token(request)
+        return Response({"csrfToken": token})
 
     # --------------------------------------------------
     # SEND OTP
@@ -54,16 +121,21 @@ class AuthViewSet(ViewSet):
 
         phone = serializer.validated_data["phone"]
 
-        # Invalidate any previous unused OTPs
+        # Rate limiting check
+        allowed, wait_seconds = check_rate_limit(phone)
+        if not allowed:
+            return Response(
+                {
+                    "error": f"Too many OTP requests. Please wait {int(wait_seconds)} seconds before trying again.",
+                    "wait_seconds": int(wait_seconds)
+                },
+                status=status.HTTP_429_TOO_MANY_REQUESTS,
+            )
+
         OTP.objects.filter(phone=phone, is_used=False).update(is_used=True)
 
         dev_mode = is_dev_mode()
-
-        # Generate OTP
-        if dev_mode:
-            code = DEV_TEST_OTP
-        else:
-            code = OTP.generate_code()
+        code = DEV_TEST_OTP if dev_mode else generate_otp()
 
         otp = OTP.objects.create(
             phone=phone,
@@ -73,34 +145,20 @@ class AuthViewSet(ViewSet):
 
         sms_sent = False
         if not dev_mode:
-            sms_sent = send_sms(
-                phone,
-                f"Your Swad of Tamil OTP is {otp.code}"
-            )
+            sms_sent = send_sms(phone, f"Your Swad OTP is {otp.code}")
 
-        # Decide whether plaintext OTP can be returned
-        show_plaintext = False
-
-        if dev_mode or getattr(settings, "SEND_PLAINTEXT_OTP", False):
+        show_plaintext = dev_mode
+        setting = SMSSetting.objects.first()
+        if setting and setting.allow_plaintext_otp:
             show_plaintext = True
-        else:
-            try:
-                setting = SMSSetting.objects.first()
-                if setting and setting.allow_plaintext_otp:
-                    show_plaintext = True
-            except Exception:
-                pass
 
         response = {
-            "message": "OTP created",
-            "sms_sent": bool(sms_sent),
+            "message": "OTP sent",
+            "sms_sent": sms_sent,
         }
 
         if show_plaintext:
             response["otp"] = otp.code
-
-        if dev_mode:
-            response["helper_text"] = "Development mode: use OTP 1234"
 
         return Response(response, status=status.HTTP_200_OK)
 
@@ -117,7 +175,6 @@ class AuthViewSet(ViewSet):
 
         dev_mode = is_dev_mode()
 
-        # DEV shortcut
         if dev_mode and code == DEV_TEST_OTP:
             customer, created = Customer.objects.get_or_create(phone=phone)
         else:
@@ -139,38 +196,213 @@ class AuthViewSet(ViewSet):
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
-            otp.is_used = True
-            otp.save(update_fields=["is_used"])
-
+            otp.mark_used()
             customer, created = Customer.objects.get_or_create(phone=phone)
+
+        user = get_or_create_user_for_customer(customer, username_hint=phone)
+
+        # Set authentication backend for OTP login
+        user.backend = 'django.contrib.auth.backends.ModelBackend'
+        login(request, user)
 
         return Response(
             {
-                "message": "OTP verified",
+                "success": True,
                 "customer": CustomerSerializer(customer).data,
                 "is_new_customer": created or not bool(customer.name),
             },
             status=status.HTTP_200_OK,
         )
 
+    # --------------------------------------------------
+    # COMPLETE PROFILE
+    # --------------------------------------------------
+    @action(detail=False, methods=["post"], permission_classes=[IsAuthenticated])
+    def complete_profile(self, request):
+        name = request.data.get("name", "").strip()
+        email = request.data.get("email", "").strip()
+
+        if not name:
+            return Response(
+                {"error": "Name is required"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        customer = Customer.objects.get(user=request.user)
+        customer.name = name
+        if email:
+            customer.email = email
+        customer.save()
+
+        return Response(
+            {
+                "success": True,
+                "customer": CustomerSerializer(customer).data,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+    # --------------------------------------------------
+    # GOOGLE LOGIN
+    # --------------------------------------------------
+    @action(detail=False, methods=["post"])
+    def google_login(self, request):
+        credential = request.data.get("credential")
+        if not credential:
+            return Response({"error": "Credential missing"}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            # Verify the Google token
+            data = id_token.verify_oauth2_token(
+                credential,
+                google_requests.Request(),
+                settings.GOOGLE_CLIENT_ID,
+            )
+
+            # Validate token claims
+            if not data.get("email_verified", False):
+                return Response({"error": "Email not verified with Google"}, status=status.HTTP_400_BAD_REQUEST)
+
+            google_id = data["sub"]
+            email = data.get("email", "").strip()
+            name = data.get("name", "").strip()
+
+            if not email:
+                return Response({"error": "Email is required from Google"}, status=status.HTTP_400_BAD_REQUEST)
+
+            # 🔗 BULLETPROOF ACCOUNT LINKING
+            from django.db import transaction
+
+            with transaction.atomic():
+                # Check if Google ID is already linked to another customer
+                existing_google_customer = Customer.objects.filter(google_id=google_id).first()
+
+                if request.user.is_authenticated:
+                    # User is logged in with phone - link Google to existing account
+                    current_customer = Customer.objects.get(user=request.user)
+
+                    if existing_google_customer:
+                        if existing_google_customer == current_customer:
+                            # Already linked - just proceed
+                            customer = current_customer
+                            created = False
+                        else:
+                            # Google ID linked to different customer - conflict
+                            return Response(
+                                {"error": "This Google account is already linked to another user"},
+                                status=status.HTTP_409_CONFLICT
+                            )
+                    else:
+                        # Link Google to current customer
+                        current_customer.google_id = google_id
+                        current_customer.google_email = email
+                        current_customer.auth_provider = "google"
+                        # Update name/email if not set
+                        if not current_customer.name and name:
+                            current_customer.name = name
+                        if not current_customer.email and email:
+                            current_customer.email = email
+                        current_customer.save()
+                        customer = current_customer
+                        created = False
+                else:
+                    # No session - normal Google login
+                    if existing_google_customer:
+                        # Existing Google customer - update info and login
+                        customer = existing_google_customer
+                        if name and not customer.name:
+                            customer.name = name
+                        if email and not customer.email:
+                            customer.email = email
+                        customer.google_email = email
+                        customer.save()
+                        created = False
+                    else:
+                        # Check for auto-linking: existing customer with same email
+                        existing_email_customer = Customer.objects.filter(email=email).first()
+                        if existing_email_customer and not existing_email_customer.google_id:
+                            # Auto-link: existing phone customer with matching email
+                            customer = existing_email_customer
+                            customer.google_id = google_id
+                            customer.google_email = email
+                            customer.auth_provider = "google"
+                            # Update name if not set
+                            if not customer.name and name:
+                                customer.name = name
+                            customer.save()
+                            created = False
+                        else:
+                            # New Google customer
+                            customer = Customer.objects.create(
+                                name=name,
+                                email=email,
+                                google_id=google_id,
+                                google_email=email,
+                                auth_provider="google",
+                            )
+                            created = True
+
+            user = get_or_create_user_for_customer(
+                customer, username_hint=f"google_{google_id}"
+            )
+
+            user.backend = "django.contrib.auth.backends.ModelBackend"
+            login(request, user)
+
+            return Response(
+                {
+                    "success": True,
+                    "customer": CustomerSerializer(customer).data,
+                    "is_new_customer": created,
+                }
+            )
+
+        except ValueError as e:
+            # Token verification failed
+            return Response(
+                {"error": "Invalid Google credential"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        except Exception as e:
+            # Log the error for debugging but don't expose details
+            print(f"Google login error: {e}")
+            return Response(
+                {"error": "Google login failed"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+    # --------------------------------------------------
+    # LOGOUT
+    # --------------------------------------------------
+    @action(detail=False, methods=["post"])
+    def logout(self, request):
+        request.session.flush()
+        logout(request)
+        return Response({"success": True})
+
+
+
+
 
 # ======================================================
-# CUSTOMER PROFILE (AUTHENTICATED)
+# CUSTOMER PROFILE
 # ======================================================
 class CustomerViewSet(ViewSet):
-    """
-    Logged-in customer profile APIs.
-    """
-
+    authentication_classes = [SessionAuthentication]
     permission_classes = [IsAuthenticated]
 
     @action(detail=False, methods=["get"])
     def me(self, request):
-        """
-        Return current customer's profile.
-        """
-        customer = Customer.objects.get(phone=request.user.phone)
-        return Response(
-            CustomerSerializer(customer).data,
-            status=status.HTTP_200_OK,
-        )
+        customer = Customer.objects.get(user=request.user)
+        return Response(CustomerSerializer(customer).data)
+
+    @action(detail=False, methods=["patch"])
+    def update_profile(self, request):
+        """Update customer profile information"""
+        customer = Customer.objects.get(user=request.user)
+        
+        serializer = CustomerUpdateSerializer(customer, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        
+        return Response(CustomerSerializer(customer).data)

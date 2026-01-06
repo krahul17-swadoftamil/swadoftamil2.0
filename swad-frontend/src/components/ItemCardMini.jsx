@@ -1,114 +1,90 @@
 import { memo } from "react";
 import { useCart } from "../context/CartContext";
 import { resolveMediaUrl } from "../utils/media";
+import LazyImage from "./LazyImage";
 
 /* ======================================================
-   ItemCardMini — Prepared Item (Aligned v2)
-   Backend-driven • Stable layout • Combo-consistent
+   ItemCard — Clean Prepared Item (v5)
+   • Matches ComboCard & SnackCard
+   • Simple add flow
+   • No visual noise
 ====================================================== */
 
-function ItemCardMini({ item, onView }) {
-  const { addItem, incItem, cart } = useCart();
+function ItemCard({ item, onView, featured = false }) {
+  const { incItem, addItem, cart } = useCart();
+
   if (!item) return null;
 
-  /* ================= IMAGE ================= */
+  /* ================= DATA ================= */
   const image = resolveMediaUrl(
-    item.primary_image ||
+    item.image_url ||
+      item.primary_image ||
       item.image ||
       (Array.isArray(item.images) ? item.images[0] : null)
   );
 
-  /* ================= DATA (DJANGO = SOURCE) ================= */
   const name = item.name || "Prepared Item";
 
   const description = (
-    item.description ||
     item.short_description ||
+    item.description ||
     item.story ||
     ""
   )
     .replace(/\r?\n/g, " • ")
     .trim();
 
-  const price = Number(
-    item.selling_price ??
-      item.price ??
-      0
-  );
+  const price = Number(item.selling_price ?? item.price ?? 0);
 
-  /* ================= PORTION ================= */
   const portion =
     item.display_quantity && item.unit
       ? `${Math.round(item.display_quantity)} ${item.unit}`
       : null;
 
-  /* ================= STOCK ================= */
-  const inStock =
-    item.stock_qty == null
-      ? true
-      : Number(item.stock_qty) > 0;
+  // Prepared items are always available (ERP rule)
+  const inStock = true;
 
-  /* ================= CART STATE ================= */
   const existing = cart.items?.find(
-    (i) => String(i.id) === String(item.id)
+    (x) => String(x.id) === String(item.id)
   );
+  const qty = existing?.qty || 0;
 
-  /* ================= QUICK ADD ================= */
-  const handleQuickAdd = (e) => {
+  /* ================= ACTIONS ================= */
+  const handleAdd = (e) => {
     e.stopPropagation();
-    if (!inStock) return;
-
-    existing
-      ? incItem(existing.id)
-      : addItem(
-          {
-            id: item.id,
-            type: "item",
-            name,
-            price,
-            image,
-            portion,
-          },
-          1
-        );
+    existing ? incItem(item.id) : addItem(item, 1);
   };
 
-  /* ================= OPEN DETAIL ================= */
-  const openDetail = () => {
+  const handleView = () => {
     onView?.(item);
   };
 
+  /* ================= UI ================= */
   return (
     <article
       role="button"
       tabIndex={0}
-      aria-label={`View ${name}`}
-      onClick={openDetail}
+      onClick={handleView}
       onKeyDown={(e) =>
-        (e.key === "Enter" || e.key === " ") && openDetail()
+        (e.key === "Enter" || e.key === " ") && handleView()
       }
-      className="
-        group relative cursor-pointer
-        rounded-3xl overflow-hidden
-        bg-card border border-subtle
-        transition-all duration-300
-        hover:-translate-y-1 hover:shadow-[0_12px_40px_rgba(0,0,0,0.25)]
+      aria-label={`View ${name}`}
+      className={`
+        relative flex flex-col overflow-hidden
+        rounded-2xl bg-card border border-subtle
+        transition-all duration-200
+        hover:shadow-lg hover:-translate-y-0.5
         focus:outline-none focus:ring-2 focus:ring-accent/40
-        flex flex-col h-full
-      "
+        ${featured ? "ring-2 ring-accent/30" : ""}
+      `}
     >
       {/* ================= IMAGE ================= */}
-      <div className="relative h-40 w-full bg-surface overflow-hidden">
+      <div className="relative aspect-[4/3] bg-surface overflow-hidden">
         {image ? (
-          <img
+          <LazyImage
             src={image}
-            alt={`${name} – freshly prepared`}
-            loading="lazy"
-            className="
-              w-full h-full object-cover
-              transition-transform duration-500
-              group-hover:scale-105
-            "
+            alt={name}
+            className="w-full h-full object-cover object-center"
           />
         ) : (
           <div className="h-full flex items-center justify-center text-xs text-muted">
@@ -116,85 +92,68 @@ function ItemCardMini({ item, onView }) {
           </div>
         )}
 
-        {/* BADGES */}
-        <div className="absolute top-3 left-3 flex gap-2 text-[10px] font-semibold">
-          <span className="px-2 py-1 rounded-full bg-black/60 text-white">
-            🍳 Fresh
-          </span>
+        <div className="absolute inset-0 bg-gradient-to-b from-transparent to-black/35" />
 
+        {/* BADGES */}
+        <div className="absolute top-3 left-3 flex gap-2 text-[11px] font-semibold">
           {portion && (
             <span className="px-2 py-1 rounded-full bg-black/60 text-white">
-              📏 {portion}
+              {portion}
             </span>
           )}
         </div>
 
-        {/* QUICK ADD */}
-        {inStock && (
-          <button
-            onClick={handleQuickAdd}
-            className="
-              absolute bottom-3 right-3
-              px-4 py-1.5
-              rounded-full text-xs font-semibold
-              bg-accent text-black
-              shadow-lg
-              opacity-0 group-hover:opacity-100
-              transition-opacity
-            "
-            aria-label={`Quick add ${name}`}
-          >
-            {existing ? "＋ Add more" : "+ Add"}
-          </button>
+        {/* PRICE */}
+        {price > 0 && (
+          <div className="absolute bottom-3 left-3 bg-black/70 text-white px-3 py-1.5 rounded-full text-base font-bold">
+            ₹{price.toFixed(0)}
+          </div>
         )}
+
+        {/* ADD BUTTON */}
+        <div className="absolute bottom-3 right-3">
+          <div className="bg-black/60 backdrop-blur-sm rounded-full px-1 py-1 transition-all duration-200 group">
+            <button
+              onClick={handleAdd}
+              className="
+                px-3 py-1.5 rounded-full
+                text-xs font-semibold
+                bg-accent text-black
+                hover:bg-accent/90
+                transition-all duration-200
+                group-hover:px-5
+                relative overflow-hidden
+              "
+            >
+              <span className="transition-all duration-200 group-hover:opacity-0">
+                {qty > 0 ? `+ ${qty}` : "Add"}
+              </span>
+              <span className="absolute inset-0 flex items-center justify-center opacity-0 transition-all duration-200 group-hover:opacity-100">
+                {qty > 0 ? `+ ${qty}` : "Add +"}
+              </span>
+            </button>
+          </div>
+        </div>
       </div>
 
       {/* ================= CONTENT ================= */}
       <div className="p-4 flex flex-col flex-1">
-        {/* TITLE */}
-        <h3 className="text-base font-semibold leading-snug line-clamp-2">
+        <h3 className="text-sm font-semibold leading-snug line-clamp-2">
           {name}
         </h3>
 
-        {/* DESCRIPTION */}
         {description && (
-          <p className="text-xs text-muted mt-1 line-clamp-2">
+          <p className="text-xs text-muted mt-2 line-clamp-2">
             {description}
           </p>
         )}
 
-        {/* PRICE — PINNED */}
-        <div className="mt-auto pt-3 flex items-center justify-between">
-          {price > 0 ? (
-            <span className="text-accent text-lg font-bold">
-              ₹{price.toFixed(0)}
-            </span>
-          ) : (
-            <span className="text-xs text-neutral-400">
-              Included in combos
-            </span>
-          )}
-
-          <span
-            className={`text-xs font-medium ${
-              inStock
-                ? "text-green-600"
-                : "text-red-600"
-            }`}
-          >
-            {inStock ? "Available" : "Sold out"}
-          </span>
+        <div className="mt-auto pt-4 flex items-center justify-between text-xs">
+          <span className="text-green-500">Available now</span>
         </div>
       </div>
-
-      {/* SOLD OUT OVERLAY */}
-      {!inStock && (
-        <div className="absolute inset-0 bg-black/55 flex items-center justify-center text-white text-sm font-semibold">
-          Sold Out
-        </div>
-      )}
     </article>
   );
 }
 
-export default memo(ItemCardMini);
+export default memo(ItemCard);

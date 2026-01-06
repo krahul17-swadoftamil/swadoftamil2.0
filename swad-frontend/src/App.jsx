@@ -5,39 +5,68 @@ import Navbar from "./components/Navbar";
 import CheckoutContainer from "./components/CheckoutContainer";
 import FloatingCart from "./components/FloatingCart";
 
+import { AuthProvider } from "./context/AuthContext";
+import { CartProvider } from "./context/CartContext";
+
 /* ================= LAZY PAGES ================= */
+const Welcome = lazy(() => import("./pages/Welcome"));
 const Home = lazy(() => import("./pages/Home"));
 const About = lazy(() => import("./pages/About"));
 const Snacks = lazy(() => import("./pages/Snacks"));
+const SubscriptionPage = lazy(() => import("./pages/SubscriptionPage"));
 const MyOrders = lazy(() => import("./pages/MyOrders"));
 const OrderDetails = lazy(() => import("./pages/OrderDetails"));
+const MobileSignup = lazy(() => import("./pages/MobileSignup"));
+const GoogleCallback = lazy(() => import("./pages/GoogleCallback"));
 
 export default function App() {
   return (
-    <div className="min-h-screen flex flex-col bg-app text-text">
-      {/* ================= NAVBAR ================= */}
-      <Navbar />
+    <AuthProvider>
+      <CartProvider>
+        <div className="min-h-screen flex flex-col bg-app text-text">
+          {/* ================= NAVBAR ================= */}
+          <Navbar />
 
-      {/* ================= CONTENT ================= */}
-      <main className="flex-1">
-        <Suspense fallback={<PageLoader />}>
-          <Routes>
-            <Route path="/" element={<Home />} />
-            <Route path="/about" element={<About />} />
-            <Route path="/snacks" element={<Snacks />} />
-            <Route path="/my-orders" element={<MyOrders />} />
-            <Route path="/order/:id" element={<OrderDetails />} />
+          {/* ================= MAIN CONTENT ================= */}
+          <main className="flex-1">
+            <Suspense fallback={<PageLoader />}>
+              <Routes>
+                {/* ENTRY POINT */}
+                <Route path="/" element={<Navigate to="/welcome" replace />} />
+                <Route path="/welcome" element={<Welcome />} />
 
-            {/* Fallback */}
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
-        </Suspense>
-      </main>
+                {/* MAIN APP */}
+                <Route path="/home" element={<Home />} />
+                <Route path="/about" element={<About />} />
+                <Route path="/snacks" element={<Snacks />} />
+                <Route path="/subscription" element={<SubscriptionPage />} />
 
-      {/* ================= GLOBAL CHECKOUT ================= */}
-      <CheckoutContainer />
-      <FloatingCart />
-    </div>
+                {/* AUTH */}
+                <Route path="/signup" element={<MobileSignup />} />
+                <Route
+                  path="/auth/google/callback"
+                  element={<GoogleCallback />}
+                />
+
+                {/* ORDERS */}
+                <Route path="/my-orders" element={<MyOrders />} />
+                <Route
+                  path="/orders/:orderId"
+                  element={<OrderDetails />}
+                />
+
+                {/* FALLBACK */}
+                <Route path="*" element={<Navigate to="/welcome" replace />} />
+              </Routes>
+            </Suspense>
+          </main>
+
+          {/* ================= GLOBAL OVERLAYS ================= */}
+          <CheckoutContainer />
+          <FloatingCart />
+        </div>
+      </CartProvider>
+    </AuthProvider>
   );
 }
 

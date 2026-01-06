@@ -1,199 +1,271 @@
-import { useState } from "react";
-import { api } from "../api";
+import { useState, useEffect } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { useAuth } from "../context/AuthContext";
+import GoogleSignInButton from "./GoogleSignInButton";
 
 /* ======================================================
-   AccountModal — OTP Login / Signup
-   Phone-first • Zero friction • ERP-aligned
+   AccountModal — FIXED
+   • Controlled by `open`
+   • Auto-unmounts on success
+   • No zombie overlays
 ====================================================== */
 
 export default function AccountModal({ open, onClose, onSuccess }) {
-  const [step, setStep] = useState("phone"); // phone | otp | profile
+  const { sendOTP, login, completeProfile, googleLogin } = useAuth();
+
+  const [step, setStep] = useState("phone");
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
 
   const [phone, setPhone] = useState("");
   const [otp, setOtp] = useState("");
-
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
 
-  if (!open) return null;
+  /* ================= RESET ON OPEN ================= */
+  useEffect(() => {
+    if (open) {
+      setStep("phone");
+      setLoading(false);
+      setError(null);
+      setPhone("");
+      setOtp("");
+      setName("");
+      setEmail("");
+    }
+  }, [open]);
+
+  /* 🚨 HARD STOP — THIS WAS MISSING */
+  // if (!open) return null; // Commented out for AnimatePresence
 
   /* ================= SEND OTP ================= */
-  const sendOTP = async () => {
-    if (!phone || phone.length < 10) return;
+  const sendOtpHandler = async () => {
+    if (phone.length !== 10) {
+      setError("Enter valid 10-digit number");
+      return;
+    }
 
     setLoading(true);
+    setError(null);
+
     try {
-      const res = await api.post("/auth/send-otp/", { phone });
-
-      // If backend returns a plaintext OTP (development/testing),
-      // prefill it so the tester doesn't have to type it.
-      if (res?.otp) {
-        setOtp(res.otp);
-      }
-
+      const res = await sendOTP(phone);
+      if (res?.otp) setOtp(res.otp);
       setStep("otp");
+    } catch (e) {
+      setError(e?.message || "OTP failed");
     } finally {
       setLoading(false);
     }
   };
 
   /* ================= VERIFY OTP ================= */
-  const verifyOTP = async () => {
-    // Accept short test OTPs (4 digits) as well as production 6-digit codes.
-    if (!otp || otp.length < 4) return;
+  const verifyOtpHandler = async () => {
+    if (otp.length !== 4) {
+      setError("Enter 4-digit OTP");
+      return;
+    }
 
     setLoading(true);
-    try {
-      const res = await api.post("/auth/verify-otp/", {
-        phone,
-        // API expects `code` (see backend serializer). Send `code`.
-        code: otp,
-      });
+    setError(null);
 
-      // Backend should return:
-      // { customer, is_new_customer }
-      if (res?.is_new_customer) {
+    try {
+      const res = await login(phone, otp);
+      const isNew = res.isNew || res.is_new_customer;
+
+      if (isNew) {
         setStep("profile");
       } else {
         onSuccess?.(res.customer);
-        onClose();
+        onClose(); // ✅ CLOSE IMMEDIATELY
       }
+    } catch (e) {
+      setError("Invalid OTP");
+      setOtp("");
     } finally {
       setLoading(false);
     }
   };
 
-  /* ================= SAVE PROFILE (FIRST TIME) ================= */
-  const saveProfile = async () => {
+  /* ================= SAVE PROFILE ================= */
+  const saveProfileHandler = async () => {
+    if (!name.trim()) {
+      setError("Name required");
+      return;
+    }
+
     setLoading(true);
-    try {
-      const res = await api.post("/auth/complete-profile/", {
-        phone,
-        name,
-        email,
-      });
+    setError(null);
 
+    try {
+      const res = await completeProfile(phone, name.trim(), email.trim() || null);
       onSuccess?.(res.customer);
-      onClose();
+      onClose(); // ✅ CLOSE IMMEDIATELY
+    } catch (e) {
+      setError("Profile save failed");
     } finally {
       setLoading(false);
     }
   };
 
-  return (
-    <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center">
-      <div className="relative w-full max-w-md bg-card rounded-2xl p-6 shadow-xl">
+  /* ================= GOOGLE ================= */
+  const googleHandler = async (cred) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await googleLogin(cred);
+      onSuccess?.(res.customer);
+      onClose(); // ✅ CLOSE
+    } catch {
+      setError("Google login failed");
+    } finally {
+      setLoading(false);
+    }
+  };
 
+  /* ======================================================
+     RENDER
+  ====================================================== */
+  return (
+    <AnimatePresence>
+      {open && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.2 }}
+          className="fixed inset-0 z-50 bg-black/60 flex items-end md:items-center justify-center"
+          onClick={onClose}
+        >
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.9, y: 20 }}
+            transition={{ 
+              duration: 0.3, 
+              ease: "easeOut",
+              scale: { type: "spring", damping: 25, stiffness: 300 }
+            }}
+            className="relative w-full max-w-md bg-card rounded-t-2xl md:rounded-2xl p-6 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
         {/* CLOSE */}
         <button
           onClick={onClose}
-          className="absolute top-4 right-4 text-muted"
+          className="absolute top-4 right-4 text-muted hover:text-foreground"
         >
           ✕
         </button>
 
-        {/* ======================================================
-            STEP 1 — PHONE
-        ====================================================== */}
+        <>
+        {/* ================= PHONE ================= */}
         {step === "phone" && (
           <>
-            <h2 className="text-lg font-semibold mb-2">
-              Enter your mobile number
-            </h2>
-            <p className="text-sm text-muted mb-4">
-              We’ll send a one-time password to verify you.
+            <h2 className="text-2xl font-bold mb-2 font-heading">Get Started</h2>
+            <p className="text-sm text-muted mb-6">
+              Sign in with Google or verify your mobile number
             </p>
+
+            <GoogleSignInButton
+              className="w-full mb-4"
+              onSuccess={(customer) => {
+                onSuccess?.(customer);
+                onClose();
+              }}
+              onError={(error) => setError("Google sign-in failed")}
+            />
+
+            <div className="relative mb-4">
+              <div className="absolute inset-0 flex items-center">
+                <span className="w-full border-t" />
+              </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-card px-2 text-muted">Or</span>
+              </div>
+            </div>
 
             <input
               value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              placeholder="10-digit mobile number"
-              className="input w-full"
+              onChange={(e) =>
+                setPhone(e.target.value.replace(/\D/g, "").slice(0, 10))
+              }
+              className="w-full px-4 py-3 rounded-xl bg-surface border"
+              placeholder="10-digit number"
+              autoFocus
             />
 
+            {error && <p className="text-red-400 mt-3">{error}</p>}
+
             <button
-              onClick={sendOTP}
-              disabled={loading}
-              className="btn-primary w-full mt-4"
+              onClick={sendOtpHandler}
+              disabled={loading || phone.length !== 10}
+              className="mt-4 w-full py-3 rounded-xl bg-accent text-black font-semibold"
             >
-              {loading ? "Sending OTP…" : "Send OTP"}
+              Send OTP
             </button>
           </>
         )}
 
-        {/* ======================================================
-            STEP 2 — OTP
-        ====================================================== */}
+        {/* ================= OTP ================= */}
         {step === "otp" && (
           <>
-            <h2 className="text-lg font-semibold mb-2">
-              Verify OTP
-            </h2>
-            <p className="text-sm text-muted mb-4">
-              Enter the 6-digit code sent to {phone}
-            </p>
-
+            <h2 className="text-2xl font-bold mb-2 font-heading">Verify OTP</h2>
             <input
               value={otp}
-              onChange={(e) => setOtp(e.target.value)}
-              placeholder="6-digit OTP"
-              className="input w-full tracking-widest text-center"
+              onChange={(e) =>
+                setOtp(e.target.value.replace(/\D/g, "").slice(0, 4))
+              }
+              className="w-full px-4 py-3 rounded-xl bg-surface border text-center text-2xl tracking-widest"
+              autoFocus
             />
 
-            <button
-              onClick={verifyOTP}
-              disabled={loading}
-              className="btn-primary w-full mt-4"
-            >
-              {loading ? "Verifying…" : "Verify"}
-            </button>
+            {error && <p className="text-red-400 mt-3">{error}</p>}
 
             <button
-              onClick={() => setStep("phone")}
-              className="mt-3 text-xs text-muted underline"
+              onClick={verifyOtpHandler}
+              disabled={loading || otp.length !== 4}
+              className="mt-4 w-full py-3 rounded-xl bg-accent text-black font-semibold"
             >
-              Change phone number
+              Verify
             </button>
           </>
         )}
 
-        {/* ======================================================
-            STEP 3 — FIRST TIME PROFILE
-        ====================================================== */}
+        {/* ================= PROFILE ================= */}
         {step === "profile" && (
           <>
-            <h2 className="text-lg font-semibold mb-2">
-              Welcome 👋
-            </h2>
-            <p className="text-sm text-muted mb-4">
-              Just one last step before ordering.
-            </p>
+            <h2 className="text-2xl font-bold mb-2 font-heading">Welcome 👋</h2>
 
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="Your name"
-              className="input w-full mb-3"
+              className="w-full px-4 py-3 rounded-xl bg-surface border mb-3"
+              placeholder="Full Name"
+              autoFocus
             />
 
             <input
               value={email}
               onChange={(e) => setEmail(e.target.value)}
+              className="w-full px-4 py-3 rounded-xl bg-surface border"
               placeholder="Email (optional)"
-              className="input w-full"
             />
 
+            {error && <p className="text-red-400 mt-3">{error}</p>}
+
             <button
-              onClick={saveProfile}
-              disabled={loading}
-              className="btn-primary w-full mt-4"
+              onClick={saveProfileHandler}
+              disabled={loading || !name.trim()}
+              className="mt-4 w-full py-3 rounded-xl bg-accent text-black font-semibold"
             >
-              {loading ? "Saving…" : "Continue"}
+              Continue
             </button>
           </>
         )}
-      </div>
-    </div>
+        </>
+        </motion.div>
+      </motion.div>
+    )}
+    </AnimatePresence>
   );
 }

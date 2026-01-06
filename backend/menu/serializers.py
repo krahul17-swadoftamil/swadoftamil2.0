@@ -3,11 +3,10 @@ Serializers for menu app (ERP-aligned, read-only).
 
 Principles:
 - Ingredient is the only cost source
-- PreparedItem = 1 production + selling unit
-- Combo = customer product
-- All calculations explicit
-- Decimal-safe (strings)
-- Frontend-safe image fields
+- PreparedItem = 1 serving unit (not stock)
+- Combo = only sellable product
+- All values explicit & decimal-safe
+- Images are frontend-safe
 """
 
 from decimal import Decimal, ROUND_HALF_UP
@@ -19,6 +18,9 @@ from menu.models import (
     PreparedItemRecipe,
     Combo,
     ComboItem,
+    MarketingOffer,
+    SubscriptionPlan,
+    Subscription,
 )
 
 ZERO = Decimal("0.00")
@@ -30,7 +32,10 @@ Q2 = Decimal("0.01")
 # ======================================================
 
 def money(value) -> str:
-    """Return decimal as string with 2dp."""
+    """
+    Return decimal as string with 2dp.
+    Always safe for frontend.
+    """
     try:
         return str(
             Decimal(value or ZERO).quantize(Q2, rounding=ROUND_HALF_UP)
@@ -52,7 +57,11 @@ def abs_image_url(context, image_field):
     except Exception:
         return None
 
-    request = context.get("request") if isinstance(context, dict) else None
+    # Handle context being None or not a dict
+    if not context or not isinstance(context, dict):
+        return url
+
+    request = context.get("request")
     return request.build_absolute_uri(url) if request else url
 
 
@@ -61,6 +70,10 @@ def abs_image_url(context, image_field):
 # ======================================================
 
 class IngredientSerializer(serializers.ModelSerializer):
+    """
+    Ingredient = ERP source of truth (read-only).
+    """
+
     total_value = serializers.SerializerMethodField()
 
     class Meta:
@@ -71,13 +84,13 @@ class IngredientSerializer(serializers.ModelSerializer):
             "unit",
             "stock_qty",
             "cost_per_unit",
-            "min_stock_level",
             "total_value",
+            "is_active",
         )
         read_only_fields = fields
 
     def get_total_value(self, obj):
-        return money(getattr(obj, "total_value", None))
+        return money(obj.total_value)
 
 
 # ======================================================
@@ -85,6 +98,10 @@ class IngredientSerializer(serializers.ModelSerializer):
 # ======================================================
 
 class PreparedItemRecipeSerializer(serializers.ModelSerializer):
+    """
+    Ingredient usage for ONE PreparedItem unit.
+    """
+
     ingredient_id = serializers.UUIDField(
         source="ingredient.id", read_only=True
     )
@@ -94,7 +111,7 @@ class PreparedItemRecipeSerializer(serializers.ModelSerializer):
     ingredient_unit = serializers.CharField(
         source="ingredient.unit", read_only=True
     )
-    ingredient_cost = serializers.SerializerMethodField()
+    # ingredient_cost = serializers.SerializerMethodField()
 
     class Meta:
         model = PreparedItemRecipe
@@ -104,20 +121,25 @@ class PreparedItemRecipeSerializer(serializers.ModelSerializer):
             "ingredient_unit",
             "quantity",
             "quantity_unit",
-            "ingredient_cost",
+            # "ingredient_cost",
         )
         read_only_fields = fields
 
-    def get_ingredient_cost(self, obj):
-        return money(obj.ingredient_cost())
+    # def get_ingredient_cost(self, obj):
+    #     return money(obj.ingredient_cost())
 
 
 # ======================================================
-# PREPARED ITEM (SELLABLE UNIT)
+# PREPARED ITEM (SERVING UNIT)
 # ======================================================
 
 class PreparedItemSerializer(serializers.ModelSerializer):
-    image = serializers.SerializerMethodField()
+    """
+    PreparedItem = serving definition used inside combos.
+    """
+
+    image_url = serializers.SerializerMethodField()
+    thumbnail_url = serializers.SerializerMethodField()
     images = serializers.SerializerMethodField()
     selling_price = serializers.SerializerMethodField()
     cost_price = serializers.SerializerMethodField()
@@ -130,19 +152,28 @@ class PreparedItemSerializer(serializers.ModelSerializer):
             "description",
             "unit",
             "serving_size",
-            "selling_price",   # ✅ REQUIRED FOR MRP
+            "selling_price",
             "cost_price",
-            "image",           # ✅ canonical frontend field
+            "image_url",
+            "thumbnail_url",
             "images",
             "is_active",
         )
         read_only_fields = fields
 
-    def get_image(self, obj):
+    def get_image_url(self, obj):
         return abs_image_url(self.context, obj.main_image)
 
+    def get_thumbnail_url(self, obj):
+        """Return thumbnail URL (smaller version for lists/cards)"""
+        full_url = self.get_image_url(obj)
+        if full_url:
+            # For now, return the same URL - can be enhanced with actual thumbnails later
+            return full_url
+        return None
+
     def get_images(self, obj):
-        img = self.get_image(obj)
+        img = self.get_image_url(obj)
         return [img] if img else []
 
     def get_selling_price(self, obj):
@@ -157,6 +188,10 @@ class PreparedItemSerializer(serializers.ModelSerializer):
 # ======================================================
 
 class ComboItemSerializer(serializers.ModelSerializer):
+    """
+    PreparedItem contribution inside a Combo.
+    """
+
     prepared_item_id = serializers.UUIDField(
         source="prepared_item.id", read_only=True
     )
@@ -171,6 +206,7 @@ class ComboItemSerializer(serializers.ModelSerializer):
     display_quantity = serializers.SerializerMethodField()
     unit_cost = serializers.SerializerMethodField()
     total_cost = serializers.SerializerMethodField()
+    recipe = serializers.SerializerMethodField()
 
     class Meta:
         model = ComboItem
@@ -183,6 +219,7 @@ class ComboItemSerializer(serializers.ModelSerializer):
             "unit_cost",
             "total_cost",
             "images",
+            "recipe",
         )
         read_only_fields = fields
 
@@ -192,9 +229,13 @@ class ComboItemSerializer(serializers.ModelSerializer):
         return [img] if img else []
 
     def get_display_quantity(self, obj):
+        """
+        Customer-facing quantity (serving_size × quantity).
+        """
         pi = obj.prepared_item
         if not pi or pi.serving_size is None:
             return None
+
         try:
             val = Decimal(pi.serving_size) * Decimal(obj.quantity)
             return str(val.quantize(Q2, rounding=ROUND_HALF_UP))
@@ -207,31 +248,30 @@ class ComboItemSerializer(serializers.ModelSerializer):
     def get_total_cost(self, obj):
         return money(obj.cost_cached)
 
+    def get_recipe(self, obj):
+        """
+        Return the ingredients used in this prepared item.
+        """
+        recipe_items = obj.prepared_item.recipe_items.all()
+        return PreparedItemRecipeSerializer(
+            recipe_items,
+            many=True,
+        ).data
+
 
 # ======================================================
 # COMBO SERIALIZER (API CONTRACT)
 # ======================================================
-class ComboSerializer(serializers.ModelSerializer):
-    image = serializers.SerializerMethodField()
-    images = serializers.SerializerMethodField()
-    items = serializers.SerializerMethodField()
 
-    # IMPORTANT: expose numeric values
-    selling_price = serializers.DecimalField(
-        max_digits=8,
-        decimal_places=2,
-        read_only=True
-    )
-    total_cost = serializers.DecimalField(
-        max_digits=8,
-        decimal_places=2,
-        read_only=True
-    )
-    profit = serializers.DecimalField(
-        max_digits=8,
-        decimal_places=2,
-        read_only=True
-    )
+class ComboSerializer(serializers.ModelSerializer):
+    """
+    Combo = customer-facing sellable product.
+    """
+
+    items = serializers.SerializerMethodField()
+    image_url = serializers.SerializerMethodField()
+    thumbnail_url = serializers.SerializerMethodField()
+    images = serializers.SerializerMethodField()
 
     class Meta:
         model = Combo
@@ -240,30 +280,31 @@ class ComboSerializer(serializers.ModelSerializer):
             "name",
             "description",
             "serve_persons",
-            "image",          # canonical frontend field
-            "images",
-            "selling_price",  # ✅ NUMBER
-            "total_cost",     # ✅ NUMBER
-            "profit",         # ✅ NUMBER
+            "selling_price",
             "is_active",
             "is_featured",
+            "image_url",
+            "thumbnail_url",
+            "images",
             "items",
         )
         read_only_fields = fields
 
-    # -------------------------------
-    # IMAGES
-    # -------------------------------
-    def get_image(self, obj):
+    def get_image_url(self, obj):
         return abs_image_url(self.context, obj.main_image)
 
+    def get_thumbnail_url(self, obj):
+        """Return thumbnail URL (smaller version for lists/cards)"""
+        full_url = self.get_image_url(obj)
+        if full_url:
+            # For now, return the same URL - can be enhanced with actual thumbnails later
+            return full_url
+        return None
+
     def get_images(self, obj):
-        img = self.get_image(obj)
+        img = self.get_image_url(obj)
         return [img] if img else []
 
-    # -------------------------------
-    # ITEMS
-    # -------------------------------
     def get_items(self, obj):
         qs = obj.items.order_by("display_order")
         return ComboItemSerializer(
@@ -271,3 +312,118 @@ class ComboSerializer(serializers.ModelSerializer):
             many=True,
             context=self.context,
         ).data
+
+
+# ======================================================
+# MARKETING OFFER
+# ======================================================
+
+class MarketingOfferSerializer(serializers.ModelSerializer):
+    """
+    Marketing offers for promotional banners.
+    """
+    is_currently_active = serializers.ReadOnlyField()
+
+    class Meta:
+        model = MarketingOffer
+        fields = (
+            "id",
+            "title",
+            "description",
+            "short_text",
+            "banner_type",
+            "discount_percentage",
+            "discount_amount",
+            "start_date",
+            "end_date",
+            "priority",
+            "is_currently_active",
+        )
+        read_only_fields = fields
+
+
+# ======================================================
+# SUBSCRIPTION PLAN
+# ======================================================
+
+class SubscriptionPlanSerializer(serializers.ModelSerializer):
+    """
+    Subscription plans for recurring deliveries.
+    """
+    discounted_price = serializers.SerializerMethodField()
+
+    class Meta:
+        model = SubscriptionPlan
+        fields = (
+            "id",
+            "name",
+            "description",
+            "plan_type",
+            "base_price",
+            "billing_cycle_days",
+            "discounted_price",
+            "is_active",
+            "combo",
+        )
+        read_only_fields = ("discounted_price",)
+
+    def get_discounted_price(self, obj):
+        """Return discounted price for display."""
+        return money(obj.get_discounted_price(30))  # Show monthly discount
+
+
+# ======================================================
+# SUBSCRIPTION
+# ======================================================
+
+class SubscriptionSerializer(serializers.ModelSerializer):
+    """
+    Active customer subscriptions.
+    """
+    plan = SubscriptionPlanSerializer(read_only=True)
+    price_per_cycle_display = serializers.SerializerMethodField()
+    status_display = serializers.CharField(source='get_status_display', read_only=True)
+
+    class Meta:
+        model = Subscription
+        fields = (
+            "id",
+            "plan",
+            "customer_name",
+            "customer_email",
+            "customer_phone",
+            "billing_cycle_days",
+            "price_per_cycle",
+            "price_per_cycle_display",
+            "status",
+            "status_display",
+            "delivery_address",
+            "delivery_instructions",
+            "start_date",
+            "next_delivery_date",
+            "paused_until",
+            "custom_days",
+            "created_at",
+            "updated_at",
+        )
+        read_only_fields = (
+            "id",
+            "price_per_cycle_display",
+            "status_display",
+            "created_at",
+            "updated_at",
+        )
+
+    def get_price_per_cycle_display(self, obj):
+        """Format price for display."""
+        return money(obj.price_per_cycle)
+
+    def create(self, validated_data):
+        """Create subscription with calculated pricing."""
+        plan = validated_data.get('plan')
+        billing_cycle_days = validated_data.get('billing_cycle_days', 30)
+
+        # Calculate price
+        validated_data['price_per_cycle'] = plan.get_discounted_price(billing_cycle_days)
+
+        return super().create(validated_data)

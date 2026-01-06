@@ -3,55 +3,70 @@ import uuid
 
 from django.db import models
 from django.core.validators import MinValueValidator
+from django.core.exceptions import ValidationError
 
 from menu.models import Combo, PreparedItem
 
 ZERO = Decimal("0.00")
 
-
-# ======================================================
-# ORDER (IMMUTABLE BUSINESS EVENT)
-# ======================================================
 class Order(models.Model):
     """
-    Order = single immutable business event.
-
-    GOLDEN RULES:
-    ❌ No ingredient deduction
-    ❌ No cost calculation
-    ❌ No combo expansion logic
-    ✔ Snapshot + status only
+    Immutable business event.
+    Created once, never edited.
     """
 
-    # -----------------------------
-    # STATUS
-    # -----------------------------
-    STATUS_PENDING = "pending"
-    STATUS_CONFIRMED = "confirmed"
-    STATUS_CANCELLED = "cancelled"
-
-    STATUS_CHOICES = (
-        (STATUS_PENDING, "Pending"),
-        (STATUS_CONFIRMED, "Confirmed"),
-        (STATUS_CANCELLED, "Cancelled"),
-    )
-
+    # =============================
+    # IDENTIFIER
+    # =============================
     id = models.UUIDField(
         primary_key=True,
         default=uuid.uuid4,
         editable=False
     )
 
+    # =============================
+    # STATUS
+    # =============================
+    STATUS_PLACED = "placed"
+    STATUS_CONFIRMED = "confirmed"
+    STATUS_PREPARING = "preparing"
+    STATUS_OUT_FOR_DELIVERY = "out_for_delivery"
+    STATUS_DELIVERED = "delivered"
+    STATUS_CANCELLED = "cancelled"
+
+    STATUS_CHOICES = (
+        (STATUS_PLACED, "Placed"),
+        (STATUS_CONFIRMED, "Confirmed"),
+        (STATUS_PREPARING, "Preparing"),
+        (STATUS_OUT_FOR_DELIVERY, "Out for Delivery"),
+        (STATUS_DELIVERED, "Delivered"),
+        (STATUS_CANCELLED, "Cancelled"),
+    )
+
     status = models.CharField(
-        max_length=10,
+        max_length=20,
         choices=STATUS_CHOICES,
-        default=STATUS_PENDING,
+        default=STATUS_PLACED,
         db_index=True
     )
 
-    # -----------------------------
+    # =============================
+    # SCHEDULING (for orders placed when store closed)
+    # =============================
+    scheduled_for = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When this order should be prepared/delivered if placed when store closed"
+    )
+
+    is_scheduled = models.BooleanField(
+        default=False,
+        help_text="Whether this order was scheduled for later due to store being closed"
+    )
+
+    # =============================
     # BILLING SNAPSHOT
-    # -----------------------------
+    # =============================
     total_amount = models.DecimalField(
         max_digits=10,
         decimal_places=2,
@@ -59,15 +74,73 @@ class Order(models.Model):
         validators=[MinValueValidator(ZERO)]
     )
 
-    # -----------------------------
-    # CUSTOMER SNAPSHOT (IMPORTANT)
-    # -----------------------------
-    customer_name = models.CharField(max_length=120)
-    customer_phone = models.CharField(max_length=20)
-    customer_email = models.EmailField(blank=True)
-    customer_address = models.TextField()
+    payment_method = models.CharField(
+        max_length=16,
+        choices=(
+            ("online", "Online"),
+            ("cod", "Cash on Delivery"),
+        ),
+        default="online",
+        db_index=True,
+    )
 
-    # Optional future linkage (never required for order creation)
+    PAYMENT_METHOD_ONLINE = "online"
+    PAYMENT_METHOD_COD = "cod"
+
+    tracking_code = models.CharField(
+        max_length=64,
+        blank=True,
+        null=True,
+        db_index=True
+    )
+
+    # Estimated delivery time in minutes
+    eta_minutes = models.PositiveIntegerField(
+        default=37,  # 30-45 min average
+        help_text="Estimated time to delivery in minutes"
+    )
+
+    # =============================
+    # SCHEDULING (SCALABLE)
+    # =============================
+    is_scheduled = models.BooleanField(
+        default=False,
+        db_index=True,
+        help_text="Whether this order is scheduled for later preparation"
+    )
+
+    scheduled_for = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When the order should be prepared/delivered"
+    )
+
+    # =============================
+    # CUSTOMER SNAPSHOT (OPTIONAL)
+    # =============================
+    customer_name = models.CharField(
+        max_length=120,
+        blank=True,
+        default=""
+    )
+
+    customer_phone = models.CharField(
+        max_length=20,
+        blank=True,
+        default=""
+    )
+
+    customer_email = models.EmailField(
+        blank=True,
+        default=""
+    )
+
+    customer_address = models.TextField(
+        blank=True,
+        default=""
+    )
+
+    # Optional FK (never required)
     customer = models.ForeignKey(
         "accounts.Customer",
         null=True,
@@ -76,32 +149,38 @@ class Order(models.Model):
         related_name="orders",
     )
 
+    # =============================
+    # METADATA
+    # =============================
+    metadata = models.JSONField(
+        default=dict,
+        blank=True,
+        null=False,
+        help_text="Store idempotency key and other request metadata"
+    )
+
     created_at = models.DateTimeField(
         auto_now_add=True,
         db_index=True
     )
 
-    # Human-friendly stable order code and order number.
-    # `order_number` will be like SOT-2025-000123 and is the canonical human id.
-    code = models.CharField(max_length=32, unique=True, db_index=True, editable=False, null=True, blank=True)
-    order_number = models.CharField(max_length=32, unique=True, db_index=True, editable=False, null=True, blank=True)
-    # Payment method and tracking (optional)
-    PAYMENT_METHOD_ONLINE = "online"
-    PAYMENT_METHOD_COD = "cod"
-
-    PAYMENT_METHOD_CHOICES = (
-        (PAYMENT_METHOD_ONLINE, "Online"),
-        (PAYMENT_METHOD_COD, "Cash on Delivery"),
-    )
-
-    payment_method = models.CharField(
-        max_length=16,
-        choices=PAYMENT_METHOD_CHOICES,
-        default=PAYMENT_METHOD_ONLINE,
+    order_number = models.CharField(
+        max_length=32,
+        unique=True,
+        null=True,
+        blank=True,
+        editable=False,
         db_index=True,
     )
 
-    tracking_code = models.CharField(max_length=64, null=True, blank=True, db_index=True)
+    code = models.CharField(
+        max_length=64,
+        unique=True,
+        null=True,
+        blank=True,
+        editable=False,
+        db_index=True,
+    )
 
     class Meta:
         ordering = ["-created_at"]
@@ -110,61 +189,209 @@ class Order(models.Model):
         ]
 
     def __str__(self):
-        return f"Order {str(self.id)[:8]}"
+        return self.order_number or str(self.id)[:8]
 
+    # =============================
+    # CODE GENERATION
+    # =============================
     def save(self, *args, **kwargs):
         from django.utils import timezone
         from core.utils import generate_and_set_code
 
-        # Compose year-prefixed SOT code: SOT-<year>-<6-digit seq>
         year = timezone.now().year
-        sot_prefix = f"SOT-{year}"
+        prefix = f"SOT-{year}"
 
-        # Generate canonical order_number if missing (immutable once set)
-        if not getattr(self, 'order_number', None):
-            for _ in range(6):
+        if not self.order_number:
+            for _ in range(5):
                 try:
-                    generate_and_set_code(self, sot_prefix, 'order_number', 6)
+                    generate_and_set_code(self, prefix, "order_number", 6)
                     break
                 except Exception:
                     continue
 
-        # Backwards compatibility: if `code` is missing, keep it equal to order_number
-        if not getattr(self, 'code', None) and getattr(self, 'order_number', None):
+        if not self.code and self.order_number:
             self.code = self.order_number
 
         super().save(*args, **kwargs)
 
-    # -----------------------------
-    # STATUS FLAGS (READ-ONLY)
-    # -----------------------------
+    # =============================
+    # ORDER CONFIRMATION & STOCK DEDUCTION
+    # =============================
+    def confirm_order(self):
+        """
+        Confirm the order and deduct ingredient stock.
+        This creates ledger entries for all consumed ingredients.
+        """
+        from django.db import transaction
+        from ingredients.models import IngredientStockLedger
+        
+        if self.status != self.STATUS_PLACED:
+            raise ValidationError(f"Cannot confirm order with status: {self.status}")
+        
+        with transaction.atomic():
+            # Deduct stock for combos
+            for order_combo in self.order_combos.all():
+                self._deduct_combo_stock(order_combo, IngredientStockLedger)
+            
+            # Deduct stock for standalone prepared items
+            for order_item in self.order_items.all():
+                self._deduct_prepared_item_stock(order_item, IngredientStockLedger)
+            
+            # Deduct stock for snacks (FIFO)
+            for order_snack in self.order_snacks.all():
+                self._deduct_snack_stock(order_snack)
+            
+            # Update order status
+            self.status = self.STATUS_CONFIRMED
+            self.save(update_fields=['status'])
+
+    def _deduct_combo_stock(self, order_combo, LedgerModel):
+        """Deduct stock for a combo in the order"""
+        combo = order_combo.combo
+        combo_quantity = order_combo.quantity
+        
+        for combo_item in combo.items.all():
+            prepared_item = combo_item.prepared_item
+            prepared_item_quantity = combo_item.quantity * combo_quantity
+            
+            self._deduct_prepared_item_stock_for_quantity(
+                prepared_item, prepared_item_quantity, LedgerModel, combo
+            )
+
+    def _deduct_prepared_item_stock(self, order_item, LedgerModel):
+        """Deduct stock for a standalone prepared item"""
+        prepared_item = order_item.prepared_item
+        quantity = order_item.quantity
+        
+        self._deduct_prepared_item_stock_for_quantity(
+            prepared_item, quantity, LedgerModel, None
+        )
+
+    def _deduct_prepared_item_stock_for_quantity(self, prepared_item, quantity, LedgerModel, combo):
+        """Deduct stock for a specific quantity of prepared item"""
+        for recipe in prepared_item.recipe_items.all():
+            # Calculate consumption based on production mode
+            if prepared_item.production_mode == prepared_item.PER_SERVING:
+                # Direct per-serving consumption
+                consumption = recipe.quantity * quantity
+            else:  # BATCH mode
+                # Calculate how many batches needed for this quantity
+                servings_per_batch = prepared_item.batch_output_quantity / prepared_item.serving_size
+                batches_needed = quantity / servings_per_batch
+                consumption = recipe.quantity * batches_needed
+            
+            # Convert to base unit
+            consumption_base = recipe.ingredient.to_base_unit(consumption, recipe.quantity_unit)
+            
+            # Create ledger entry
+            LedgerModel.objects.create(
+                ingredient=recipe.ingredient,
+                change_type=LedgerModel.CONSUMPTION,
+                quantity_change=-consumption_base,  # Negative for consumption
+                unit=recipe.ingredient.unit,  # Base unit
+                related_order=self,
+                related_prepared_item=prepared_item,
+                related_combo=combo,
+                note=f"Order {self.order_number}: {prepared_item.name} × {quantity}"
+            )
+
+    def _deduct_snack_stock(self, order_snack):
+        """Deduct stock for snacks using FIFO (oldest batch first)"""
+        from snacks.models import Snack
+        
+        try:
+            snack = Snack.objects.get(id=order_snack.snack_id)
+        except Snack.DoesNotExist:
+            raise ValidationError(f"Snack {order_snack.snack_id} not found")
+        
+        quantity_needed = order_snack.quantity
+        
+        # Use FIFO: consume from oldest batches first
+        while quantity_needed > 0:
+            batch = snack.next_consumable_batch()
+            if not batch:
+                raise ValidationError(f"Insufficient stock for snack: {snack.name}")
+            
+            # Consume as much as possible from this batch
+            consume_qty = min(quantity_needed, batch.units_remaining)
+            batch.consume(consume_qty)
+            quantity_needed -= consume_qty
+
+    # =============================
+    # FLAGS
+    # =============================
     @property
     def is_pending(self):
         return self.status == self.STATUS_PENDING
 
-    @property
-    def is_confirmed(self):
-        return self.status == self.STATUS_CONFIRMED
+class OrderAddon(models.Model):
+    """
+    Addons for order items (extra toppings, customizations, etc.)
+    """
+    order = models.ForeignKey(
+        Order,
+        related_name="order_addons",
+        on_delete=models.CASCADE
+    )
+
+    # Reference to the item this addon belongs to
+    order_item_type = models.CharField(
+        max_length=16,
+        choices=[
+            ("global", "Global Order Addon"),
+            ("combo", "Combo"),
+            ("item", "Prepared Item"),
+            ("snack", "Snack"),
+        ]
+    )
+
+    # IDs for the parent item
+    combo_id = models.UUIDField(null=True, blank=True)
+    prepared_item_id = models.UUIDField(null=True, blank=True)
+    snack_id = models.BigIntegerField(null=True, blank=True)
+
+    # Addon details
+    addon_name = models.CharField(max_length=120)
+    addon_category = models.CharField(max_length=50, blank=True)  # e.g., "Toppings", "Spice Level"
+    quantity = models.PositiveIntegerField(default=1)
+    unit_price = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        default=ZERO
+    )
+
+    class Meta:
+        indexes = [models.Index(fields=["order"])]
 
     @property
-    def is_cancelled(self):
-        return self.status == self.STATUS_CANCELLED
+    def total_price(self):
+        return self.unit_price * self.quantity
+
+    def __str__(self):
+        return f"{self.addon_name} × {self.quantity}"
 
 
-# ======================================================
-# ORDER COMBO (LEVEL-1 SNAPSHOT)
-# ======================================================
+class OrderItem(models.Model):
+    order = models.ForeignKey(
+        Order,
+        related_name="order_items",
+        on_delete=models.CASCADE
+    )
+
+    prepared_item = models.ForeignKey(
+        PreparedItem,
+        on_delete=models.PROTECT
+    )
+
+    quantity = models.PositiveIntegerField(default=1)
+
+    class Meta:
+        indexes = [models.Index(fields=["order"])]
+
+    def __str__(self):
+        return f"{self.prepared_item.name} × {self.quantity}"
+
 class OrderCombo(models.Model):
-    """
-    Snapshot of combos ordered.
-
-    ✔ Invoice
-    ✔ UI display
-    ✔ Sales reporting
-
-    ❌ NEVER used for stock or ingredient deduction
-    """
-
     order = models.ForeignKey(
         Order,
         related_name="order_combos",
@@ -182,66 +409,12 @@ class OrderCombo(models.Model):
 
     class Meta:
         unique_together = ("order", "combo")
-        indexes = [
-            models.Index(fields=["order"]),
-        ]
+        indexes = [models.Index(fields=["order"])]
 
     def __str__(self):
         return f"{self.combo.name} × {self.quantity}"
 
-
-# ======================================================
-# ORDER ITEM (ERP AUTHORITY)
-# ======================================================
-class OrderItem(models.Model):
-    """
-    Flattened PreparedItem snapshot.
-
-    THIS IS ERP GOLD:
-    ✔ Used for ingredient deduction
-    ✔ Immutable
-    ✔ Audit-safe
-    ✔ No combo logic inside
-    """
-
-    order = models.ForeignKey(
-        Order,
-        related_name="order_items",
-        on_delete=models.CASCADE
-    )
-
-    prepared_item = models.ForeignKey(
-        PreparedItem,
-        on_delete=models.PROTECT
-    )
-
-    quantity = models.PositiveSmallIntegerField(
-        validators=[MinValueValidator(1)]
-    )
-
-    class Meta:
-        unique_together = ("order", "prepared_item")
-        indexes = [
-            models.Index(fields=["order"]),
-        ]
-
-    def __str__(self):
-        return f"{self.prepared_item.name} × {self.quantity}"
-
-
-# ======================================================
-# ORDER SNACK (PRICE-ONLY SNAPSHOT)
-# ======================================================
 class OrderSnack(models.Model):
-    """
-    Snapshot of snack items.
-
-    ✔ Price-only
-    ✔ No ingredients
-    ✔ No stock logic
-    ✔ Fully isolated from ERP logic
-    """
-
     order = models.ForeignKey(
         Order,
         related_name="order_snacks",
@@ -262,31 +435,15 @@ class OrderSnack(models.Model):
     )
 
     class Meta:
-        indexes = [
-            models.Index(fields=["order"]),
-        ]
-
-    def __str__(self):
-        return f"{self.snack_name} × {self.quantity}"
+        indexes = [models.Index(fields=["order"])]
 
     @property
     def total_price(self):
         return self.unit_price * self.quantity
 
-
-# ======================================================
-# CART & CART LINES (EPHEMERAL CUSTOMER CART)
-# ======================================================
 class Cart(models.Model):
-    """
-    Lightweight persisted cart. Stores a snapshot of items a customer
-    or anonymous session intends to purchase. This is separate from
-    immutable `Order` and can be modified freely.
-    """
-
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
 
-    # Link to customer when available (optional)
     customer = models.ForeignKey(
         "accounts.Customer",
         null=True,
@@ -295,11 +452,19 @@ class Cart(models.Model):
         related_name="carts",
     )
 
-    # Optional session key for anonymous carts
-    session_key = models.CharField(max_length=64, blank=True, null=True, db_index=True)
+    session_key = models.CharField(
+        max_length=64,
+        null=True,
+        blank=True,
+        db_index=True
+    )
 
-    # Totals and metadata
-    total_amount = models.DecimalField(max_digits=10, decimal_places=2, default=ZERO)
+    total_amount = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        default=ZERO
+    )
+
     metadata = models.JSONField(default=dict, blank=True)
 
     created_at = models.DateTimeField(auto_now_add=True)
@@ -308,52 +473,52 @@ class Cart(models.Model):
     class Meta:
         ordering = ["-updated_at"]
 
-    def __str__(self):
-        return f"Cart {str(self.id)[:8]} ({self.customer or self.session_key or 'anon'})"
-
-
 class CartLine(models.Model):
-    """
-    Single cart line. Mirrors order snapshot structure but remains editable.
-    Fields accommodate combos, prepared items and snacks.
-    """
-
     TYPE_COMBO = "combo"
     TYPE_ITEM = "item"
     TYPE_SNACK = "snack"
 
-    TYPE_CHOICES = [
-        (TYPE_COMBO, "Combo"),
-        (TYPE_ITEM, "PreparedItem"),
-        (TYPE_SNACK, "Snack"),
-    ]
+    cart = models.ForeignKey(
+        Cart,
+        related_name="lines",
+        on_delete=models.CASCADE
+    )
 
-    cart = models.ForeignKey(Cart, related_name="lines", on_delete=models.CASCADE)
+    type = models.CharField(
+        max_length=16,
+        choices=[
+            (TYPE_COMBO, "Combo"),
+            (TYPE_ITEM, "PreparedItem"),
+            (TYPE_SNACK, "Snack"),
+        ]
+    )
 
-    type = models.CharField(max_length=16, choices=TYPE_CHOICES)
+    combo = models.ForeignKey(
+        Combo,
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT
+    )
 
-    # Optional foreign keys depending on type
-    combo = models.ForeignKey(Combo, null=True, blank=True, on_delete=models.PROTECT)
-    prepared_item = models.ForeignKey(PreparedItem, null=True, blank=True, on_delete=models.PROTECT)
+    prepared_item = models.ForeignKey(
+        PreparedItem,
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT
+    )
 
-    # Snack snapshot (price-only)
     snack_id = models.BigIntegerField(null=True, blank=True)
     snack_name = models.CharField(max_length=120, blank=True)
 
     quantity = models.PositiveIntegerField(default=1)
-    unit_price = models.DecimalField(max_digits=10, decimal_places=2, default=ZERO)
+    unit_price = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        default=ZERO
+    )
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-
-    class Meta:
-        indexes = [models.Index(fields=["cart"])]
-
-    def __str__(self):
-        label = self.snack_name if self.type == self.TYPE_SNACK else (
-            self.combo.name if self.combo else (self.prepared_item.name if self.prepared_item else "line")
-        )
-        return f"{label} × {self.quantity}"
 
 class Address(models.Model):
     customer = models.ForeignKey(
@@ -361,12 +526,26 @@ class Address(models.Model):
         on_delete=models.CASCADE,
         related_name="addresses"
     )
+
     line1 = models.TextField()
     city = models.CharField(max_length=50)
     pincode = models.CharField(max_length=10)
+
     is_default = models.BooleanField(default=False)
 
     created_at = models.DateTimeField(auto_now_add=True)
 
-    def __str__(self):
-        return f"{self.line1} ({self.pincode})"
+class OrderEvent(models.Model):
+    order = models.ForeignKey(
+        Order,
+        related_name="events",
+        on_delete=models.CASCADE
+    )
+
+    action = models.CharField(max_length=32)
+    note = models.CharField(max_length=255, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["created_at"]
+

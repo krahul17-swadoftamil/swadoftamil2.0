@@ -7,6 +7,18 @@ export default {
   ],
   theme: {
     extend: {
+      fontFamily: {
+        // Heading fonts - elegant serif for brand feel
+        'heading': ['Playfair Display', 'serif'],
+        'heading-alt': ['Merriweather', 'serif'],
+        
+        // Body fonts - clean sans-serif for readability
+        'body': ['Inter', 'sans-serif'],
+        'body-alt': ['Poppins', 'sans-serif'],
+        
+        // System fallback
+        'sans': ['Inter', 'system-ui', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'sans-serif'],
+      },
       colors: {
         /* ================= APP BACKGROUNDS ================= */
         app: "var(--bg-app)",

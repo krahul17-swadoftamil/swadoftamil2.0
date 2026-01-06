@@ -1,11 +1,12 @@
 import { useEffect } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import ItemCardMini from "./ItemCardMini";
 
 /* ======================================================
-   ItemListModal — Prepared Items (Add-ons)
-   • Shows items used in combo
-   • Allows adding extra items
-   • Click → opens ItemDetailModal
+   ItemListModal — Extra Prepared Items (v2)
+   • Combo helper drawer
+   • Focused upsell
+   • Lightweight
 ====================================================== */
 
 export default function ItemListModal({
@@ -22,41 +23,59 @@ export default function ItemListModal({
     return () => window.removeEventListener("keydown", esc);
   }, [open, onClose]);
 
-  if (!open) return null;
+  if (!open) return null; // Keep for now
 
   return (
-    <div
-      className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center"
-      onClick={onClose}
-    >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        className="
-          w-full sm:max-w-3xl
-          bg-card rounded-t-3xl sm:rounded-2xl
-          overflow-hidden
-          flex flex-col
-        "
-      >
-        {/* ================= HEADER ================= */}
-        <div className="flex items-center justify-between p-4 border-b border-subtle">
-          <h3 className="text-lg font-semibold">
-            Available items
-          </h3>
-          <button
-            onClick={onClose}
-            className="text-muted hover:text-text"
-            aria-label="Close"
+    <AnimatePresence>
+      {open && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.2 }}
+          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center"
+          onClick={onClose}
+        >
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.9, y: 20 }}
+            transition={{ 
+              duration: 0.3, 
+              ease: "easeOut",
+              scale: { type: "spring", damping: 25, stiffness: 300 }
+            }}
+            onClick={(e) => e.stopPropagation()}
+            className="
+              w-full sm:max-w-xl
+              bg-card rounded-t-3xl sm:rounded-2xl
+              overflow-hidden flex flex-col
+            "
           >
-            ✕
-          </button>
+        {/* ================= HEADER ================= */}
+        <div className="p-4 border-b border-subtle">
+          <div className="flex items-center justify-between">
+            <h3 className="text-lg font-semibold">
+              Add something extra
+            </h3>
+            <button
+              onClick={onClose}
+              className="text-muted hover:text-text"
+              aria-label="Close"
+            >
+              ✕
+            </button>
+          </div>
+          <p className="text-xs text-muted mt-1">
+            These items will be added separately to your order
+          </p>
         </div>
 
         {/* ================= CONTENT ================= */}
-        <div className="p-4 grid grid-cols-2 sm:grid-cols-3 gap-4 overflow-y-auto">
+        <div className="p-4 grid grid-cols-2 gap-4 overflow-y-auto">
           {items.length === 0 ? (
-            <div className="col-span-full text-center text-muted text-sm">
-              No items available
+            <div className="col-span-full text-center text-muted text-sm py-8">
+              No extra items available
             </div>
           ) : (
             items.map((item) => (
@@ -71,9 +90,11 @@ export default function ItemListModal({
 
         {/* ================= FOOTER ================= */}
         <div className="border-t border-subtle p-3 text-xs text-muted text-center">
-          Extra items are added separately · Combo remains unchanged
+          Combo remains unchanged · Items added individually
         </div>
-      </div>
-    </div>
+        </motion.div>
+      </motion.div>
+    )}
+    </AnimatePresence>
   );
 }
