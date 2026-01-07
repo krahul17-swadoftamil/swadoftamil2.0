@@ -14,6 +14,8 @@ function ComboCard({
   combo,
   combos = [],
   onView,
+  onRequireAuth,
+  isAuthenticated = false,
   badge = null,
   featured = false,
   size = "normal",
@@ -69,6 +71,12 @@ function ComboCard({
     e.stopPropagation();
     if (!inStock) return;
 
+    // Check authentication - show contextual sign-in if not authenticated
+    if (!isAuthenticated) {
+      onRequireAuth?.();
+      return;
+    }
+
     existing ? incCombo(combo.id) : addCombo(combo, 1);
     trackClick(combo.id, "combo");
     
@@ -90,12 +98,12 @@ function ComboCard({
   return (
     <motion.article
       role="button"
-      tabIndex={0}
-      onClick={handleView}
+      tabIndex={inStock ? 0 : -1}
+      onClick={inStock ? handleView : undefined}
       onKeyDown={(e) =>
-        (e.key === "Enter" || e.key === " ") && handleView()
+        inStock && (e.key === "Enter" || e.key === " ") && handleView()
       }
-      aria-label={`View ${name}`}
+      aria-label={inStock ? `View ${name}` : `${name} - Tomorrow morning`}
       className={`
         relative flex flex-col overflow-hidden
         rounded-2xl bg-card border border-subtle
@@ -103,94 +111,82 @@ function ComboCard({
         ${pressed ? "scale-[0.98]" : ""}
         ${featured ? "ring-2 ring-accent/30" : ""}
         ${size === "large" ? "transform scale-110" : ""}
+        ${!inStock ? "opacity-60 cursor-not-allowed" : "cursor-pointer"}
       `}
-      whileHover={{ y: -4, scale: size === "large" ? 1.02 : 1.02 }}
+      whileHover={inStock ? { y: -4, scale: size === "large" ? 1.02 : 1.02 } : {}}
       transition={{ type: "spring", stiffness: 200, damping: 26 }}
     >
-      {/* ================= IMAGE ================= */}
+      {/* ================= IMAGE (HERO) ================= */}
       <div className={`relative ${imageSizeClasses[size]} bg-surface overflow-hidden`}>
         {image ? (
-          <LazyImage
-            src={image}
-            alt={name}
-            className="w-full h-full object-cover object-center"
-          />
+          <>
+            <img
+              src={image}
+              alt={name}
+              className="w-full h-full object-cover object-center filter brightness-110 contrast-105"
+              loading="lazy"
+            />
+            {/* Premium Lighting Layer - Top Light */}
+            <div className="absolute inset-0 bg-gradient-to-b from-white/10 via-transparent to-transparent pointer-events-none" />
+            
+            {/* Premium Lighting Layer - Bottom Shadow */}
+            <div className="absolute inset-0 bg-gradient-to-b from-transparent to-black/25 pointer-events-none" />
+            
+            {/* Vignette Effect */}
+            <div className="absolute inset-0 pointer-events-none" style={{
+              background: 'radial-gradient(ellipse at center, transparent 0%, rgba(0,0,0,0.15) 100%)'
+            }} />
+          </>
         ) : (
           <div className="h-full flex items-center justify-center text-xs text-muted">
             Image coming soon
           </div>
-        )}
-
-        <div className="absolute inset-0 bg-gradient-to-b from-transparent to-black/35" />
-
-        {/* BADGES - MAX 2 WITH PRIORITY */}
-        <div className="absolute top-3 left-3 flex flex-wrap gap-2 text-[11px] font-semibold">
-          {/* Priority 1: Serves X (only if serves exists) */}
-          {serves && (
-            <span className="px-2 py-1 rounded-full bg-black/60 text-white">
-              Serves {serves}
-            </span>
-          )}
-        </div>
-
-        {/* PRICE - BOTTOM LEFT */}
-        <div className="absolute bottom-3 left-3 bg-black/70 text-white px-3 py-1.5 rounded-full text-sm font-bold">
-          ₹{price.toFixed(0)}
-        </div>
-
-        {/* ADD BUTTON */}
-        {inStock && (
-          <motion.div
-            className="absolute bottom-3 right-3"
-            animate={bounce ? { scale: [1, 1.15, 0.95, 1] } : { scale: 1 }}
-            transition={{ duration: 0.4, ease: "easeOut" }}
-          >
-            <div className="bg-black/60 backdrop-blur-sm rounded-full px-1 py-1 transition-all duration-200 group">
-              <button
-                onClick={handleAdd}
-                className="
-                  px-3 py-1.5 rounded-full text-xs font-semibold
-                  bg-accent text-black
-                  hover:bg-accent/90
-                  transition-all duration-200
-                  group-hover:px-5
-                "
-              >
-                {qty > 0 ? `+ ${qty}` : "Add Breakfast"}
-              </button>
-            </div>
-          </motion.div>
         )}
       </div>
 
       {/* ================= CONTENT ================= */}
       <div className="p-4 flex flex-col flex-1">
         {/* COMBO NAME */}
-        <h3 className={`${size === "large" ? "text-xl" : "text-lg"} font-bold leading-snug line-clamp-2 mb-2`}>
+        <h3 className={`${size === "large" ? "text-xl" : "text-lg"} font-bold leading-snug line-clamp-2 mb-3`}>
           {name}
         </h3>
 
-        {/* WHY THIS COMBO */}
-        <p className={`${size === "large" ? "text-base" : "text-sm"} text-accent font-medium mb-4`}>
-          {serves ? `Perfect for ${serves} people` : 
-           total_items >= 3 ? "Complete snack assortment" : 
-           "Traditional South Indian flavors"}
-        </p>
+        {/* PRICE */}
+        <div className={`${size === "large" ? "text-2xl" : "text-xl"} font-bold text-accent mb-2`}>
+          ₹{price.toFixed(0)}
+        </div>
 
-        {/* PRICE & ADD BUTTON */}
-        <div className="mt-auto flex items-center justify-between">
-          <div className={`${size === "large" ? "text-2xl" : "text-xl"} font-bold text-accent`}>
-            ₹{price.toFixed(0)}
+        {/* SERVES COUNT */}
+        {serves && (
+          <div className="text-sm text-muted font-medium mb-4">
+            Serves {serves}
           </div>
+        )}
+
+        {/* CTA BUTTON */}
+        <div className="mt-auto">
+          {inStock ? (
+            <motion.button
+              onClick={handleAdd}
+              className="
+                w-full py-3 px-4 rounded-xl text-sm font-semibold
+                bg-accent text-black
+                hover:bg-accent/90
+                transition-all duration-200
+                focus:outline-none focus:ring-2 focus:ring-accent/40
+              "
+              animate={bounce ? { scale: [1, 1.05, 0.98, 1] } : { scale: 1 }}
+              transition={{ duration: 0.4, ease: "easeOut" }}
+            >
+              {qty > 0 ? `Add More (${qty})` : "Add Breakfast"}
+            </motion.button>
+          ) : (
+            <div className="w-full py-3 px-4 rounded-xl text-sm font-semibold bg-muted text-muted-foreground text-center">
+              Tomorrow morning
+            </div>
+          )}
         </div>
       </div>
-
-      {/* SOLD OUT */}
-      {!inStock && (
-        <div className="absolute inset-0 bg-black/70 flex items-center justify-center text-white text-sm font-semibold rounded-2xl">
-          Sold Out
-        </div>
-      )}
     </motion.article>
   );
 }

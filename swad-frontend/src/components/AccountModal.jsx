@@ -11,7 +11,7 @@ import GoogleSignInButton from "./GoogleSignInButton";
 ====================================================== */
 
 export default function AccountModal({ open, onClose, onSuccess }) {
-  const { sendOTP, login, completeProfile, googleLogin } = useAuth();
+  const { sendOTP, login, completeProfile, firebaseLogin } = useAuth();
 
   const [step, setStep] = useState("phone");
   const [loading, setLoading] = useState(false);
@@ -21,6 +21,7 @@ export default function AccountModal({ open, onClose, onSuccess }) {
   const [otp, setOtp] = useState("");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
+  const [rememberMe, setRememberMe] = useState(false);
 
   /* ================= RESET ON OPEN ================= */
   useEffect(() => {
@@ -32,6 +33,7 @@ export default function AccountModal({ open, onClose, onSuccess }) {
       setOtp("");
       setName("");
       setEmail("");
+      setRememberMe(false);
     }
   }, [open]);
 
@@ -168,12 +170,21 @@ export default function AccountModal({ open, onClose, onSuccess }) {
 
             <GoogleSignInButton
               className="w-full mb-4"
-              onSuccess={(customer) => {
-                onSuccess?.(customer);
-                onClose();
-              }}
-              onError={(error) => setError("Google sign-in failed")}
+              rememberMe={rememberMe}
             />
+
+            <div className="flex items-center mb-4">
+              <input
+                type="checkbox"
+                id="rememberMe"
+                checked={rememberMe}
+                onChange={(e) => setRememberMe(e.target.checked)}
+                className="mr-2"
+              />
+              <label htmlFor="rememberMe" className="text-sm text-muted">
+                Remember me for 30 days
+              </label>
+            </div>
 
             <div className="relative mb-4">
               <div className="absolute inset-0 flex items-center">

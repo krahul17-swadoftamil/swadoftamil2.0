@@ -1,6 +1,6 @@
 from django.contrib import admin
 from django.utils.html import format_html
-from .models import StoreStatus, StoreShift, StoreException
+from .models import StoreStatus, StoreShift, StoreException, BreakfastWindow
 
 
 @admin.register(StoreStatus)
@@ -289,3 +289,46 @@ class StoreExceptionAdmin(admin.ModelAdmin):
                 "</div>"
             )
         return "—"
+
+
+@admin.register(BreakfastWindow)
+class BreakfastWindowAdmin(admin.ModelAdmin):
+    list_display = (
+        "name",
+        "opens_at",
+        "closes_at",
+        "is_active",
+        "status_label",
+        "status_message",
+        "current_status_display",
+        "updated_at",
+    )
+
+    list_editable = ("is_active", "status_label", "status_message")
+
+    readonly_fields = ("current_status_display", "updated_at")
+
+    fieldsets = (
+        ("Breakfast Window Configuration", {
+            "fields": ("name", "opens_at", "closes_at", "is_active"),
+        }),
+        ("Status Display", {
+            "description": "Configure how the breakfast window appears to customers",
+            "fields": ("status_label", "status_message"),
+        }),
+        ("System Info", {
+            "fields": ("current_status_display", "updated_at"),
+        }),
+    )
+
+    @admin.display(description="Live Status")
+    def current_status_display(self, obj):
+        is_open = obj.is_open_now
+        status_color = "#4caf50" if is_open else "#f44336"
+        status_text = "🟢 OPEN" if is_open else "🔴 CLOSED"
+
+        return format_html(
+            f"<div style='background:{status_color};color:white;padding:4px 8px;border-radius:4px;text-align:center;font-weight:bold'>"
+            f"{status_text}"
+            "</div>"
+        )

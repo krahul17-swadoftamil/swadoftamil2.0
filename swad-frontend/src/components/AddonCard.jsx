@@ -43,11 +43,14 @@ export default function AddonCard({ addon, item, compact = false }) {
         {/* INFO */}
         <div className="flex items-center gap-3 min-w-0">
           {image && (
-            <img
-              src={image}
-              alt={name}
-              className="w-8 h-8 rounded object-cover flex-shrink-0"
-            />
+            <div className="relative w-8 h-8 rounded overflow-hidden flex-shrink-0">
+              <img
+                src={image}
+                alt={name}
+                className="w-full h-full rounded object-cover filter brightness-105 contrast-110"
+              />
+              <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-black/10 pointer-events-none" />
+            </div>
           )}
 
           <div className="min-w-0">

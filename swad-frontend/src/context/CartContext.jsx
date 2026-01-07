@@ -7,6 +7,8 @@ import {
   useRef,
 } from "react";
 import { api } from "../api";
+import { useLastOrder } from "../hooks/useLastOrder";
+import { useOrderCount } from "../hooks/useOrderCount";
 
 /* ======================================================
    CartContext — FINAL (Order API Aligned)
@@ -117,6 +119,8 @@ function reducer(state, action) {
 export function CartProvider({ children }) {
   const [state, dispatch] = useReducer(reducer, initialState);
   const saveTimer = useRef(null);
+  const { saveLastOrder } = useLastOrder();
+  const { incrementOrderCount } = useOrderCount();
 
   /* ---------- SELECTORS ---------- */
 
@@ -212,6 +216,17 @@ export function CartProvider({ children }) {
       };
 
       const order = await api.post("/orders/", payload);
+      
+      // ✔ Save last order for Smart Re-Order feature
+      saveLastOrder({
+        combos: state.combos,
+        items: state.items,
+        snacks: state.snacks,
+        total: total,
+      });
+
+      // ✔ Increment order count for loyalty tracking
+      incrementOrderCount();
       
       // ✔ Clear cart IMMEDIATELY on success
       dispatch({ type: "ORDER_SUCCESS" });

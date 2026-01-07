@@ -248,6 +248,7 @@ class AuthViewSet(ViewSet):
     @action(detail=False, methods=["post"])
     def google_login(self, request):
         credential = request.data.get("credential")
+        remember_me = request.data.get("remember_me", False)
         if not credential:
             return Response({"error": "Credential missing"}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -349,11 +350,32 @@ class AuthViewSet(ViewSet):
             user.backend = "django.contrib.auth.backends.ModelBackend"
             login(request, user)
 
+            # Set session expiry based on remember_me
+            if remember_me:
+                request.session.set_expiry(60 * 60 * 24 * 30)  # 30 days
+            else:
+                request.session.set_expiry(60 * 60 * 24)  # 1 day
+
+            # Generate JWT tokens
+            from rest_framework_simplejwt.tokens import RefreshToken
+            refresh = RefreshToken.for_user(user)
+            
+            # Set custom expiry for remember_me
+            if remember_me:
+                refresh.set_exp(60 * 60 * 24 * 30)  # 30 days
+                access = refresh.access_token
+                access.set_exp(60 * 60)  # 1 hour access token
+            else:
+                # Use default expiry from settings
+                access = refresh.access_token
+
             return Response(
                 {
                     "success": True,
                     "customer": CustomerSerializer(customer).data,
                     "is_new_customer": created,
+                    "access": str(access),
+                    "refresh": str(refresh),
                 }
             )
 
@@ -368,6 +390,85 @@ class AuthViewSet(ViewSet):
             print(f"Google login error: {e}")
             return Response(
                 {"error": "Google login failed"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+    # --------------------------------------------------
+    # FIREBASE LOGIN
+    # --------------------------------------------------
+    @action(detail=False, methods=["post"])
+    def firebase_login(self, request):
+        """Authenticate user with Firebase ID token"""
+        id_token = request.data.get("id_token")
+        remember_me = request.data.get("remember_me", False)
+        if not id_token:
+            return Response({"error": "Firebase ID token is required"}, status=status.HTTP_400_BAD_REQUEST)
+
+        from backend.firebase_utils import verify_firebase_token, get_or_create_user_from_firebase
+
+        # Verify Firebase token
+        firebase_user = verify_firebase_token(id_token)
+        if not firebase_user:
+            return Response({"error": "Invalid Firebase token"}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            # Get or create Django user from Firebase user data
+            user = get_or_create_user_from_firebase(firebase_user)
+
+            # Get or create customer profile
+            customer, created = Customer.objects.get_or_create(
+                user=user,
+                defaults={
+                    'name': firebase_user.get('name', ''),
+                    'email': firebase_user.get('email', ''),
+                    'auth_provider': 'firebase',
+                }
+            )
+
+            # Update customer info if needed
+            if not customer.name and firebase_user.get('name'):
+                customer.name = firebase_user['name']
+                customer.save()
+
+            if not customer.email and firebase_user.get('email'):
+                customer.email = firebase_user['email']
+                customer.save()
+
+            # Log the user in
+            user.backend = "django.contrib.auth.backends.ModelBackend"
+            login(request, user)
+
+            # Set session expiry based on remember_me
+            if remember_me:
+                request.session.set_expiry(60 * 60 * 24 * 30)  # 30 days
+            else:
+                request.session.set_expiry(60 * 60 * 24)  # 1 day
+
+            # Generate JWT tokens
+            from rest_framework_simplejwt.tokens import RefreshToken
+            refresh = RefreshToken.for_user(user)
+            
+            # Set custom expiry for remember_me
+            if remember_me:
+                refresh.set_exp(60 * 60 * 24 * 30)  # 30 days
+                access = refresh.access_token
+                access.set_exp(60 * 60)  # 1 hour access token
+            else:
+                # Use default expiry from settings
+                access = refresh.access_token
+
+            return Response({
+                "success": True,
+                "customer": CustomerSerializer(customer).data,
+                "is_new_customer": created or not bool(customer.name),
+                "access": str(access),
+                "refresh": str(refresh),
+            })
+
+        except Exception as e:
+            print(f"Firebase login error: {e}")
+            return Response(
+                {"error": "Firebase authentication failed"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 

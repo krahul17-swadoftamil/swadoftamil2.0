@@ -149,7 +149,7 @@ function ItemCard({ item, onView, featured = false }) {
         )}
 
         <div className="mt-auto pt-4 flex items-center justify-between text-xs">
-          <span className="text-green-500">Available now</span>
+          <span className="text-green-500">Available today</span>
         </div>
       </div>
     </article>

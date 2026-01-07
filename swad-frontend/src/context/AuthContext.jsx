@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState, useCallback, useMemo } from "react";
-import { api } from "../api";
+import { api, setJWTTokenGetter } from "../api";
 
 const AuthContext = createContext(null);
 
@@ -15,6 +15,16 @@ export function AuthProvider({ children }) {
     sessionStorage.getItem("postLoginRedirect")
   );
 
+  // JWT token getter
+  const getJWTToken = useCallback(() => {
+    return localStorage.getItem('access_token');
+  }, []);
+
+  // Set JWT token getter for API
+  useEffect(() => {
+    setJWTTokenGetter(getJWTToken);
+  }, [getJWTToken]);
+
   /* ======================================================
      SESSION RESTORE
   ====================================================== */
@@ -22,10 +32,22 @@ export function AuthProvider({ children }) {
   const restoreSession = useCallback(async () => {
     try {
       setError(null);
+      
+      // Only try to restore session if we have a JWT token
+      const token = localStorage.getItem('access_token');
+      if (!token) {
+        setChecking(false);
+        return;
+      }
+      
       const res = await api.get("/auth/me/");
       setUser(res);
       setIsAuthenticated(true);
     } catch (err) {
+      // Clear invalid tokens
+      localStorage.removeItem('access_token');
+      localStorage.removeItem('refresh_token');
+      
       setUser(null);
       setIsAuthenticated(false);
       // Only set error for network issues, not for unauthenticated state
@@ -137,11 +159,18 @@ export function AuthProvider({ children }) {
     }
   }, [postLoginRedirect, mergeGuestToUser]);
 
-  const googleLogin = useCallback(async (credential) => {
+  const firebaseLogin = useCallback(async (idToken, rememberMe = false) => {
     setLoading(true);
     setError(null);
     try {
-      const res = await api.post("/auth/google-login/", { credential });
+      const res = await api.post("/auth/jwt/firebase/", { id_token: idToken, remember_me: rememberMe });
+      
+      // Store JWT tokens
+      if (res.access && res.refresh) {
+        localStorage.setItem('access_token', res.access);
+        localStorage.setItem('refresh_token', res.refresh);
+      }
+      
       setUser(res.customer);
       setIsAuthenticated(true);
       await mergeGuestToUser();
@@ -211,7 +240,7 @@ export function AuthProvider({ children }) {
     sendOTP,
     login,
     completeProfile,
-    googleLogin,
+    firebaseLogin,
     logoutUser,
 
     enableGuestCheckout,
@@ -228,7 +257,7 @@ export function AuthProvider({ children }) {
     sendOTP,
     login,
     completeProfile,
-    googleLogin,
+    firebaseLogin,
     logoutUser,
     enableGuestCheckout,
     setPostLoginRedirectUrl,

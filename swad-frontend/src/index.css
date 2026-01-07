@@ -51,47 +51,327 @@
   --accent-glow-strong: rgba(250,204,21,0.12);
   --success: #43a047;
   --muted-rgba: 0,0,0,0.45;
+
+  /* Default Theme Fallbacks (Light Theme) */
+  --theme-bg-app: var(--theme-light-bg-app);
+  --theme-bg-surface: var(--theme-light-bg-surface);
+  --theme-bg-card: var(--theme-light-bg-card);
+  --theme-bg-modal: var(--theme-light-bg-modal);
+  --theme-text-primary: var(--theme-light-text-primary);
+  --theme-text-muted: var(--theme-light-text-muted);
+  --theme-text-soft: var(--theme-light-text-soft);
+  --theme-accent: var(--theme-light-accent);
+  --theme-accent-strong: var(--theme-light-accent-strong);
+  --theme-border: var(--theme-light-border);
+  --theme-shadow-soft: var(--theme-light-shadow-soft);
+  --theme-shadow-hover: var(--theme-light-shadow-hover);
+  --theme-accent-glow: var(--theme-light-accent-glow);
+  --theme-accent-glow-strong: var(--theme-light-accent-glow-strong);
 }
-/* ================= LIGHT ================= */
+
+/*
+  THEME SYSTEM USAGE:
+  ===================
+
+  HTML Classes for Theme Selection:
+  - <html class="light">   - Default warm light theme
+  - <html class="dark">    - Dark theme with golden accents
+  - <html class="warm">    - Warm sunset/orange theme
+  - <html class="cool">    - Cool mint/teal theme
+  - <html class="contrast"> - High contrast accessibility theme
+  - <html class="vintage">  - Sepia vintage theme
+
+  Data Attributes (Alternative):
+  - <html data-theme="light">
+  - <html data-theme="dark">
+  - etc.
+
+  JavaScript Theme Switching:
+  document.documentElement.className = 'dark';
+  // or
+  document.documentElement.setAttribute('data-theme', 'dark');
+
+  CSS Custom Properties Available:
+  --bg-app, --bg-surface, --bg-card, --bg-modal
+  --text-primary, --text-muted, --text-soft
+  --accent, --accent-strong
+  --border, --shadow-soft, --shadow-hover
+  --accent-glow, --accent-glow-strong
+
+  Theme Preview Classes (for theme selector UI):
+  .theme-preview-light, .theme-preview-dark, .theme-preview-warm, etc.
+
+  Theme Index System:
+  - [0-3]: Background colors
+  - [4-6]: Text colors
+  - [7-8]: Accent colors
+  - [9-11]: UI elements (borders, shadows)
+  - [12-13]: Glow effects
+*/
+
+/* ================= LIGHT THEME INDEX ================= */
 html.light {
-  --bg-app: #f9f6f1;
-  --bg-surface: #f2ede7;
-  --bg-card: #ffffff;
-  --bg-modal: #ffffff;
+  /* Background Colors [0-3] */
+  --theme-light-bg-app: #f9f6f1;
+  --theme-light-bg-surface: #f2ede7;
+  --theme-light-bg-card: #ffffff;
+  --theme-light-bg-modal: #ffffff;
 
-  --text-primary: #1f1b18;
-  --text-muted: #6e6159;
-  --text-soft: #9a8f86;
+  /* Text Colors [4-6] */
+  --theme-light-text-primary: #1f1b18;
+  --theme-light-text-muted: #6e6159;
+  --theme-light-text-soft: #9a8f86;
 
-  --accent: #d4a032;
-  --accent-strong: #e6b545;
+  /* Accent Colors [7-8] */
+  --theme-light-accent: #d4a032;
+  --theme-light-accent-strong: #e6b545;
 
-  --border: rgba(31, 27, 24, 0.08);
-  --shadow-soft: 0 6px 18px rgba(31, 27, 24, 0.06);
-  --shadow-hover: 0 12px 30px rgba(31, 27, 24, 0.1);
-  --accent-glow: rgba(212,160,50,0.06);
-  --accent-glow-strong: rgba(212,160,50,0.12);
+  /* UI Elements [9-11] */
+  --theme-light-border: rgba(31, 27, 24, 0.08);
+  --theme-light-shadow-soft: 0 6px 18px rgba(31, 27, 24, 0.06);
+  --theme-light-shadow-hover: 0 12px 30px rgba(31, 27, 24, 0.1);
+
+  /* Glow Effects [12-13] */
+  --theme-light-accent-glow: rgba(212,160,50,0.06);
+  --theme-light-accent-glow-strong: rgba(212,160,50,0.12);
 }
 
-/* ================= DARK ================= */
+/* ================= DARK THEME INDEX ================= */
 html.dark {
-  --bg-app: #0e0e0e;
-  --bg-surface: #141414;
-  --bg-card: #151515;
-  --bg-modal: #1b1b1b;
+  /* Background Colors [0-3] */
+  --theme-dark-bg-app: #0e0e0e;
+  --theme-dark-bg-surface: #141414;
+  --theme-dark-bg-card: #151515;
+  --theme-dark-bg-modal: #1b1b1b;
 
-  --text-primary: #f8f8f8;
-  --text-muted: #c8d0e0;
-  --text-soft: #94a3b8;
+  /* Text Colors [4-6] */
+  --theme-dark-text-primary: #f8f8f8;
+  --theme-dark-text-muted: #c8d0e0;
+  --theme-dark-text-soft: #94a3b8;
 
-  --accent: #facc15;
-  --accent-strong: #fde047;
+  /* Accent Colors [7-8] */
+  --theme-dark-accent: #facc15;
+  --theme-dark-accent-strong: #fde047;
 
-  --border: rgba(255, 255, 255, 0.06);
-  --shadow-soft: 0 6px 18px rgba(0, 0, 0, 0.6);
-  --shadow-hover: 0 14px 34px rgba(0, 0, 0, 0.8);
-  --accent-glow: rgba(250,204,21,0.06);
-  --accent-glow-strong: rgba(250,204,21,0.12);
+  /* UI Elements [9-11] */
+  --theme-dark-border: rgba(255, 255, 255, 0.06);
+  --theme-dark-shadow-soft: 0 6px 18px rgba(0, 0, 0, 0.6);
+  --theme-dark-shadow-hover: 0 14px 34px rgba(0, 0, 0, 0.8);
+
+  /* Glow Effects [12-13] */
+  --theme-dark-accent-glow: rgba(250,204,21,0.06);
+  --theme-dark-accent-glow-strong: rgba(250,204,21,0.12);
+}
+
+/* ================= WARM/SUNSET THEME INDEX ================= */
+html.warm {
+  /* Background Colors [0-3] */
+  --theme-warm-bg-app: #fef7ed;
+  --theme-warm-bg-surface: #fed7aa;
+  --theme-warm-bg-card: #ffffff;
+  --theme-warm-bg-modal: #ffffff;
+
+  /* Text Colors [4-6] */
+  --theme-warm-text-primary: #9a3412;
+  --theme-warm-text-muted: #c2410c;
+  --theme-warm-text-soft: #ea580c;
+
+  /* Accent Colors [7-8] */
+  --theme-warm-accent: #dc2626;
+  --theme-warm-accent-strong: #ef4444;
+
+  /* UI Elements [9-11] */
+  --theme-warm-border: rgba(154, 52, 18, 0.08);
+  --theme-warm-shadow-soft: 0 6px 18px rgba(154, 52, 18, 0.06);
+  --theme-warm-shadow-hover: 0 12px 30px rgba(154, 52, 18, 0.1);
+
+  /* Glow Effects [12-13] */
+  --theme-warm-accent-glow: rgba(220,38,38,0.06);
+  --theme-warm-accent-glow-strong: rgba(220,38,38,0.12);
+}
+
+/* ================= COOL/MINT THEME INDEX ================= */
+html.cool {
+  /* Background Colors [0-3] */
+  --theme-cool-bg-app: #f0fdfa;
+  --theme-cool-bg-surface: #ccfbf1;
+  --theme-cool-bg-card: #ffffff;
+  --theme-cool-bg-modal: #ffffff;
+
+  /* Text Colors [4-6] */
+  --theme-cool-text-primary: #115e59;
+  --theme-cool-text-muted: #0f766e;
+  --theme-cool-text-soft: #14b8a6;
+
+  /* Accent Colors [7-8] */
+  --theme-cool-accent: #0891b2;
+  --theme-cool-accent-strong: #06b6d4;
+
+  /* UI Elements [9-11] */
+  --theme-cool-border: rgba(17, 94, 89, 0.08);
+  --theme-cool-shadow-soft: 0 6px 18px rgba(17, 94, 89, 0.06);
+  --theme-cool-shadow-hover: 0 12px 30px rgba(17, 94, 89, 0.1);
+
+  /* Glow Effects [12-13] */
+  --theme-cool-accent-glow: rgba(8,145,178,0.06);
+  --theme-cool-accent-glow-strong: rgba(8,145,178,0.12);
+}
+
+/* ================= HIGH CONTRAST THEME INDEX ================= */
+html.contrast {
+  /* Background Colors [0-3] */
+  --theme-contrast-bg-app: #000000;
+  --theme-contrast-bg-surface: #1a1a1a;
+  --theme-contrast-bg-card: #ffffff;
+  --theme-contrast-bg-modal: #ffffff;
+
+  /* Text Colors [4-6] */
+  --theme-contrast-text-primary: #ffffff;
+  --theme-contrast-text-muted: #e5e5e5;
+  --theme-contrast-text-soft: #cccccc;
+
+  /* Accent Colors [7-8] */
+  --theme-contrast-accent: #ffff00;
+  --theme-contrast-accent-strong: #ffff99;
+
+  /* UI Elements [9-11] */
+  --theme-contrast-border: rgba(255, 255, 255, 0.3);
+  --theme-contrast-shadow-soft: 0 6px 18px rgba(0, 0, 0, 0.8);
+  --theme-contrast-shadow-hover: 0 14px 34px rgba(0, 0, 0, 1.0);
+
+  /* Glow Effects [12-13] */
+  --theme-contrast-accent-glow: rgba(255,255,0,0.1);
+  --theme-contrast-accent-glow-strong: rgba(255,255,0,0.2);
+}
+
+/* ================= VINTAGE/SEPIA THEME INDEX ================= */
+html.vintage {
+  /* Background Colors [0-3] */
+  --theme-vintage-bg-app: #faf7f0;
+  --theme-vintage-bg-surface: #f5f0e8;
+  --theme-vintage-bg-card: #ffffff;
+  --theme-vintage-bg-modal: #ffffff;
+
+  /* Text Colors [4-6] */
+  --theme-vintage-text-primary: #5d4e37;
+  --theme-vintage-text-muted: #8b7355;
+  --theme-vintage-text-soft: #b0916a;
+
+  /* Accent Colors [7-8] */
+  --theme-vintage-accent: #a0785a;
+  --theme-vintage-accent-strong: #c49b7a;
+
+  /* UI Elements [9-11] */
+  --theme-vintage-border: rgba(93, 78, 55, 0.12);
+  --theme-vintage-shadow-soft: 0 6px 18px rgba(93, 78, 55, 0.08);
+  --theme-vintage-shadow-hover: 0 12px 30px rgba(93, 78, 55, 0.12);
+
+  /* Glow Effects [12-13] */
+  --theme-vintage-accent-glow: rgba(160,120,90,0.08);
+  --theme-vintage-accent-glow-strong: rgba(160,120,90,0.15);
+}
+
+/* ================= THEME SWITCHING LOGIC ================= */
+html.light {
+  --bg-app: var(--theme-light-bg-app);
+  --bg-surface: var(--theme-light-bg-surface);
+  --bg-card: var(--theme-light-bg-card);
+  --bg-modal: var(--theme-light-bg-modal);
+  --text-primary: var(--theme-light-text-primary);
+  --text-muted: var(--theme-light-text-muted);
+  --text-soft: var(--theme-light-text-soft);
+  --accent: var(--theme-light-accent);
+  --accent-strong: var(--theme-light-accent-strong);
+  --border: var(--theme-light-border);
+  --shadow-soft: var(--theme-light-shadow-soft);
+  --shadow-hover: var(--theme-light-shadow-hover);
+  --accent-glow: var(--theme-light-accent-glow);
+  --accent-glow-strong: var(--theme-light-accent-glow-strong);
+}
+
+html.dark {
+  --bg-app: var(--theme-dark-bg-app);
+  --bg-surface: var(--theme-dark-bg-surface);
+  --bg-card: var(--theme-dark-bg-card);
+  --bg-modal: var(--theme-dark-bg-modal);
+  --text-primary: var(--theme-dark-text-primary);
+  --text-muted: var(--theme-dark-text-muted);
+  --text-soft: var(--theme-dark-text-soft);
+  --accent: var(--theme-dark-accent);
+  --accent-strong: var(--theme-dark-accent-strong);
+  --border: var(--theme-dark-border);
+  --shadow-soft: var(--theme-dark-shadow-soft);
+  --shadow-hover: var(--theme-dark-shadow-hover);
+  --accent-glow: var(--theme-dark-accent-glow);
+  --accent-glow-strong: var(--theme-dark-accent-glow-strong);
+}
+
+html.warm {
+  --bg-app: var(--theme-warm-bg-app);
+  --bg-surface: var(--theme-warm-bg-surface);
+  --bg-card: var(--theme-warm-bg-card);
+  --bg-modal: var(--theme-warm-bg-modal);
+  --text-primary: var(--theme-warm-text-primary);
+  --text-muted: var(--theme-warm-text-muted);
+  --text-soft: var(--theme-warm-text-soft);
+  --accent: var(--theme-warm-accent);
+  --accent-strong: var(--theme-warm-accent-strong);
+  --border: var(--theme-warm-border);
+  --shadow-soft: var(--theme-warm-shadow-soft);
+  --shadow-hover: var(--theme-warm-shadow-hover);
+  --accent-glow: var(--theme-warm-accent-glow);
+  --accent-glow-strong: var(--theme-warm-accent-glow-strong);
+}
+
+html.cool {
+  --bg-app: var(--theme-cool-bg-app);
+  --bg-surface: var(--theme-cool-bg-surface);
+  --bg-card: var(--theme-cool-bg-card);
+  --bg-modal: var(--theme-cool-bg-modal);
+  --text-primary: var(--theme-cool-text-primary);
+  --text-muted: var(--theme-cool-text-muted);
+  --text-soft: var(--theme-cool-text-soft);
+  --accent: var(--theme-cool-accent);
+  --accent-strong: var(--theme-cool-accent-strong);
+  --border: var(--theme-cool-border);
+  --shadow-soft: var(--theme-cool-shadow-soft);
+  --shadow-hover: var(--theme-cool-shadow-hover);
+  --accent-glow: var(--theme-cool-accent-glow);
+  --accent-glow-strong: var(--theme-cool-accent-glow-strong);
+}
+
+html.contrast {
+  --bg-app: var(--theme-contrast-bg-app);
+  --bg-surface: var(--theme-contrast-bg-surface);
+  --bg-card: var(--theme-contrast-bg-card);
+  --bg-modal: var(--theme-contrast-bg-modal);
+  --text-primary: var(--theme-contrast-text-primary);
+  --text-muted: var(--theme-contrast-text-muted);
+  --text-soft: var(--theme-contrast-text-soft);
+  --accent: var(--theme-contrast-accent);
+  --accent-strong: var(--theme-contrast-accent-strong);
+  --border: var(--theme-contrast-border);
+  --shadow-soft: var(--theme-contrast-shadow-soft);
+  --shadow-hover: var(--theme-contrast-shadow-hover);
+  --accent-glow: var(--theme-contrast-accent-glow);
+  --accent-glow-strong: var(--theme-contrast-accent-glow-strong);
+}
+
+html.vintage {
+  --bg-app: var(--theme-vintage-bg-app);
+  --bg-surface: var(--theme-vintage-bg-surface);
+  --bg-card: var(--theme-vintage-bg-card);
+  --bg-modal: var(--theme-vintage-bg-modal);
+  --text-primary: var(--theme-vintage-text-primary);
+  --text-muted: var(--theme-vintage-text-muted);
+  --text-soft: var(--theme-vintage-text-soft);
+  --accent: var(--theme-vintage-accent);
+  --accent-strong: var(--theme-vintage-accent-strong);
+  --border: var(--theme-vintage-border);
+  --shadow-soft: var(--theme-vintage-shadow-soft);
+  --shadow-hover: var(--theme-vintage-shadow-hover);
+  --accent-glow: var(--theme-vintage-accent-glow);
+  --accent-glow-strong: var(--theme-vintage-accent-glow-strong);
 }
 @layer utilities {
   .bg-app { background-color: var(--bg-app); }
@@ -109,6 +389,39 @@ html.dark {
   .aspect-square > img, .aspect-square > * {
     position: absolute; inset: 0; width: 100%; height: 100%;
   }
+
+  /* Theme Utility Classes */
+  .theme-light { color-scheme: light; }
+  .theme-dark { color-scheme: dark; }
+  .theme-warm { color-scheme: light; }
+  .theme-cool { color-scheme: light; }
+  .theme-contrast { color-scheme: dark; }
+  .theme-vintage { color-scheme: light; }
+
+  /* Theme Transition Utilities */
+  .theme-transition {
+    transition: background-color 300ms ease, color 300ms ease, border-color 300ms ease, box-shadow 300ms ease;
+  }
+
+  .theme-transition-all {
+    transition: all 300ms ease;
+  }
+
+  /* Theme Data Attributes (Alternative to classes) */
+  [data-theme="light"] { color-scheme: light; }
+  [data-theme="dark"] { color-scheme: dark; }
+  [data-theme="warm"] { color-scheme: light; }
+  [data-theme="cool"] { color-scheme: light; }
+  [data-theme="contrast"] { color-scheme: dark; }
+  [data-theme="vintage"] { color-scheme: light; }
+
+  /* Theme Preview Classes (for theme selector UI) */
+  .theme-preview-light { background: linear-gradient(135deg, #f9f6f1 0%, #f2ede7 100%); }
+  .theme-preview-dark { background: linear-gradient(135deg, #0e0e0e 0%, #141414 100%); }
+  .theme-preview-warm { background: linear-gradient(135deg, #fef7ed 0%, #fed7aa 100%); }
+  .theme-preview-cool { background: linear-gradient(135deg, #f0fdfa 0%, #ccfbf1 100%); }
+  .theme-preview-contrast { background: linear-gradient(135deg, #000000 0%, #1a1a1a 100%); }
+  .theme-preview-vintage { background: linear-gradient(135deg, #faf7f0 0%, #f5f0e8 100%); }
 }
 @layer components {
   .card {

@@ -1,7 +1,7 @@
 /* ======================================================
-   api.js — Swad of Tamil (OPTIMIZED)
-   Session-based • Reload-safe • Django-aligned
-   Features: Retry logic, deduplication, CSRF handling
+   api.js — Swad of Tamil (JWT + SESSION HYBRID)
+   Supports both JWT and session authentication
+   Features: Retry logic, deduplication, JWT/CSRF handling
 ====================================================== */
 
 const RAW_BASE =
@@ -14,11 +14,11 @@ export const API_BASE = RAW_BASE.replace(/\/$/, "");
 const requestCache = new Map();
 const REQUEST_CACHE_TTL = 5000; // 5 seconds
 
-// CSRF token storage
+// CSRF token storage (for session auth)
 let csrfToken = null;
 
 /* ======================================================
-   CSRF TOKEN MANAGEMENT
+   CSRF TOKEN MANAGEMENT (SESSION AUTH)
 ====================================================== */
 
 async function getCsrfToken() {
@@ -53,6 +53,46 @@ async function getCsrfToken() {
 }
 
 /* ======================================================
+   JWT TOKEN MANAGEMENT
+====================================================== */
+
+// Global JWT token getter (will be set by JWT context)
+let getJWTToken = null;
+
+export function setJWTTokenGetter(getter) {
+  getJWTToken = getter;
+}
+
+/* ======================================================
+   AUTHENTICATION HEADERS
+====================================================== */
+
+async function getAuthHeaders(includeCSRF = true) {
+  const headers = {
+    'Content-Type': 'application/json',
+  };
+
+  // Add JWT token if available
+  if (getJWTToken) {
+    const token = await getJWTToken();
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+      return headers; // JWT takes precedence, skip CSRF
+    }
+  }
+
+  // Fallback to session auth with CSRF
+  if (includeCSRF) {
+    const csrf = await getCsrfToken();
+    if (csrf) {
+      headers['X-CSRFToken'] = csrf;
+    }
+  }
+
+  return headers;
+}
+
+/* ======================================================
    CORE REQUEST WITH RETRY & DEDUPLICATION
 ====================================================== */
 
@@ -84,13 +124,9 @@ async function request(endpoint, options = {}, retryCount = 0) {
       ...(options.headers || {}),
     };
 
-    // Add CSRF token for non-GET requests
-    if ((options.method || 'GET') !== 'GET') {
-      const token = await getCsrfToken();
-      if (token) {
-        headers['X-CSRFToken'] = token;
-      }
-    }
+    // Add authentication headers (JWT or CSRF)
+    const authHeaders = await getAuthHeaders((options.method || 'GET') !== 'GET');
+    Object.assign(headers, authHeaders);
 
     const res = await fetch(url, {
       method: options.method || "GET",

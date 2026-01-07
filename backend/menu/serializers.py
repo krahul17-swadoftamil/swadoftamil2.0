@@ -198,6 +198,9 @@ class ComboItemSerializer(serializers.ModelSerializer):
     prepared_item_name = serializers.CharField(
         source="prepared_item.name", read_only=True
     )
+    display_text = serializers.CharField(
+        source="prepared_item.name", read_only=True
+    )
     unit = serializers.CharField(
         source="prepared_item.unit", read_only=True
     )
@@ -213,6 +216,7 @@ class ComboItemSerializer(serializers.ModelSerializer):
         fields = (
             "prepared_item_id",
             "prepared_item_name",
+            "display_text",
             "unit",
             "quantity",
             "display_quantity",

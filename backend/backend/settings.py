@@ -39,10 +39,13 @@ SECRET_KEY = os.getenv(
     "unsafe-dev-secret-key-change-in-production"
 )
 
-ALLOWED_HOSTS = os.getenv(
-    "ALLOWED_HOSTS",
-    "127.0.0.1,localhost,192.168.1.68"
-).split(",")
+# TEMPORARY FIX: Allow all hosts for tunnel testing
+ALLOWED_HOSTS = [
+    "localhost",
+    "127.0.0.1",
+    "192.168.1.68",  # Your local IP
+    "*",  # Allow all for tunnel testing
+]
 
 
 # ======================================================
@@ -123,7 +126,7 @@ CORS_ALLOW_ALL_ORIGINS = DEBUG
 CORS_ALLOW_CREDENTIALS = True
 
 if DEBUG:
-    # Development: Allow all localhost ports for Vite
+    # Development: Allow all localhost ports for Vite + tunnels
     CORS_ALLOWED_ORIGINS = [
         "http://localhost:3000",
         "http://localhost:3001",
@@ -145,6 +148,9 @@ if DEBUG:
         "http://127.0.0.1:5177",
         "http://127.0.0.1:5178",
         "http://127.0.0.1:5179",
+        # Add your tunnel URLs here when using ngrok/localtunnel
+        # "https://your-tunnel-url.ngrok.io",
+        # "https://your-subdomain.loca.lt",
     ]
 
     CSRF_TRUSTED_ORIGINS = [
@@ -298,10 +304,51 @@ REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [
         "rest_framework.authentication.SessionAuthentication",
         "rest_framework.authentication.BasicAuthentication",
+        "rest_framework_simplejwt.authentication.JWTAuthentication",
+        # "accounts.firebase_auth.FirebaseAuthentication",  # Disabled for testing
+        # "accounts.firebase_auth.FirebaseTokenAuthentication",  # Disabled for testing
     ],
     "DEFAULT_RENDERER_CLASSES": [
         "rest_framework.renderers.JSONRenderer",
     ],
+}
+
+
+# ======================================================
+# JWT CONFIGURATION
+# ======================================================
+from datetime import timedelta
+
+SIMPLE_JWT = {
+    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=60),  # 1 hour
+    "REFRESH_TOKEN_LIFETIME": timedelta(days=7),     # 7 days
+    "ROTATE_REFRESH_TOKENS": True,
+    "BLACKLIST_AFTER_ROTATION": True,
+    "UPDATE_LAST_LOGIN": False,
+
+    "ALGORITHM": "HS256",
+    "SIGNING_KEY": SECRET_KEY,
+    "VERIFYING_KEY": None,
+    "AUDIENCE": None,
+    "ISSUER": None,
+    "JWK_URL": None,
+    "LEEWAY": 0,
+
+    "AUTH_HEADER_TYPES": ("Bearer",),
+    "AUTH_HEADER_NAME": "HTTP_AUTHORIZATION",
+    "USER_ID_FIELD": "id",
+    "USER_ID_CLAIM": "user_id",
+    "USER_AUTHENTICATION_RULE": "rest_framework_simplejwt.authentication.default_user_authentication_rule",
+
+    "AUTH_TOKEN_CLASSES": ("rest_framework_simplejwt.tokens.AccessToken",),
+    "TOKEN_TYPE_CLAIM": "token_type",
+    "TOKEN_USER_CLASS": "rest_framework_simplejwt.models.TokenUser",
+
+    "JTI_CLAIM": "jti",
+
+    "SLIDING_TOKEN_REFRESH_EXP_CLAIM": "refresh_exp",
+    "SLIDING_TOKEN_LIFETIME": timedelta(minutes=5),
+    "SLIDING_TOKEN_REFRESH_LIFETIME": timedelta(days=1),
 }
 
 
@@ -345,3 +392,20 @@ LOGGING = {
 }
 
 GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
+
+
+# ======================================================
+# FIREBASE CONFIGURATION
+# ======================================================
+FIREBASE_CONFIG = {
+    "type": "service_account",
+    "project_id": os.getenv("FIREBASE_PROJECT_ID"),
+    "private_key_id": os.getenv("FIREBASE_PRIVATE_KEY_ID"),
+    "private_key": os.getenv("FIREBASE_PRIVATE_KEY", "").replace("\\n", "\n"),
+    "client_email": os.getenv("FIREBASE_CLIENT_EMAIL"),
+    "client_id": os.getenv("FIREBASE_CLIENT_ID"),
+    "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+    "token_uri": "https://oauth2.googleapis.com/token",
+    "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+    "client_x509_cert_url": os.getenv("FIREBASE_CLIENT_X509_CERT_URL"),
+}

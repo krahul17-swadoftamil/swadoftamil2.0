@@ -117,7 +117,7 @@ export default function ItemDetailModal({ open, item, onClose }) {
               </span>
             )}
             <span className="text-green-500 font-medium">
-              Available now
+              Available today
             </span>
           </div>
 

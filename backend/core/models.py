@@ -316,3 +316,145 @@ class StoreException(models.Model):
             "is_closed": exception.is_closed,
             "note": exception.note,
         }
+
+
+class BreakfastWindow(models.Model):
+    """
+    BREAKFAST WINDOW STATUS — Django-Driven Timing System
+
+    Purpose: Control breakfast availability window with premium UX messaging.
+    Separate from general StoreShift system for focused breakfast operations.
+
+    Examples:
+        Morning: 06:00 - 10:00 (Fresh Tamil breakfast window)
+        Status: OPEN, CLOSED, OPENING_SOON
+    """
+
+    STATUS_CHOICES = [
+        ('OPEN', 'Open'),
+        ('CLOSED', 'Closed'),
+        ('OPENING_SOON', 'Opening Soon'),
+    ]
+
+    name = models.CharField(
+        max_length=50,
+        default="Breakfast Window",
+        help_text="Display name (e.g., 'Breakfast Window')"
+    )
+
+    opens_at = models.TimeField(
+        help_text="Breakfast window opens at (e.g., 06:00)"
+    )
+
+    closes_at = models.TimeField(
+        help_text="Breakfast window closes at (e.g., 10:00)"
+    )
+
+    is_active = models.BooleanField(
+        default=True,
+        help_text="Enable/disable this breakfast window"
+    )
+
+    status_label = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default='CLOSED',
+        help_text="Current status label for frontend"
+    )
+
+    status_message = models.CharField(
+        max_length=100,
+        blank=True,
+        help_text="Single source of truth message (e.g., 'Opens at 9:30 AM')"
+    )
+
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Breakfast Window"
+        verbose_name_plural = "Breakfast Windows"
+
+    def __str__(self):
+        return f"{self.name} ({self.opens_at} - {self.closes_at})"
+
+    @property
+    def is_open_now(self) -> bool:
+        """Check if breakfast window is currently open"""
+        if not self.is_active:
+            return False
+
+        from django.utils import timezone
+        now = timezone.localtime().time()
+        return self.opens_at <= now <= self.closes_at
+
+    @property
+    def next_open_datetime(self):
+        """Get next opening datetime"""
+        from django.utils import timezone
+        from datetime import datetime
+
+        now = timezone.localtime()
+        today = now.date()
+        current_time = now.time()
+
+        # If opens today after current time
+        if self.opens_at > current_time:
+            next_open = timezone.make_aware(
+                datetime.combine(today, self.opens_at)
+            )
+            return next_open
+
+        # Opens tomorrow
+        tomorrow = today.replace(day=today.day + 1)
+        next_open = timezone.make_aware(
+            datetime.combine(tomorrow, self.opens_at)
+        )
+        return next_open
+
+    @classmethod
+    def get_current_status(cls):
+        """Get current breakfast window status for API"""
+        try:
+            window = cls.objects.filter(is_active=True).first()
+            if not window:
+                return {
+                    "is_open": False,
+                    "status_label": "CLOSED",
+                    "status_message": "Breakfast window not configured",
+                    "opens_at": None,
+                    "closes_at": None,
+                    "next_open_at": None,
+                }
+
+            is_open = window.is_open_now
+            next_open = window.next_open_datetime if not is_open else None
+
+            return {
+                "is_open": is_open,
+                "status_label": window.status_label,
+                "status_message": window.status_message or cls._generate_message(window, is_open, next_open),
+                "opens_at": window.opens_at.strftime("%H:%M") if window.opens_at else None,
+                "closes_at": window.closes_at.strftime("%H:%M") if window.closes_at else None,
+                "next_open_at": next_open.isoformat() if next_open else None,
+            }
+
+        except Exception as e:
+            # Fallback for any errors
+            return {
+                "is_open": False,
+                "status_label": "CLOSED",
+                "status_message": "Unable to check breakfast status",
+                "opens_at": None,
+                "closes_at": None,
+                "next_open_at": None,
+            }
+
+    @classmethod
+    def _generate_message(cls, window, is_open, next_open):
+        """Generate status message if not manually set"""
+        if is_open:
+            return f"Open until {window.closes_at.strftime('%I:%M %p')}"
+        elif next_open:
+            return f"Opens at {next_open.strftime('%I:%M %p')}"
+        else:
+            return "Currently closed"

@@ -7,7 +7,7 @@ import { usePersonalization } from "../hooks/usePersonalization";
 import LazyImage from "./LazyImage";
 
 /* ======================================================
-   SnackCard — Calm, Premium Add-on (v4)
+   SnackCard — Muted, Secondary Add-on (v5)
 ====================================================== */
 
 function SnackCard({
@@ -102,99 +102,108 @@ function SnackCard({
       aria-label={`View ${name}`}
       className={`
         relative flex flex-col overflow-hidden
-        rounded-2xl bg-card border border-subtle
+        rounded-lg bg-surface border border-subtle/50
         transition-all duration-200
-        hover:shadow-lg hover:-translate-y-0.5
-        focus:outline-none focus:ring-2 focus:ring-accent/40
-        ${featured ? "ring-2 ring-accent/30" : ""}
+        hover:shadow-sm hover:border-subtle
+        focus:outline-none focus:ring-1 focus:ring-accent/30
+        ${featured ? "ring-1 ring-accent/20" : ""}
       `}
     >
       {/* ================= IMAGE ================= */}
-      <div className="relative aspect-[4/3] bg-surface overflow-hidden">
+      <div className="relative aspect-square bg-muted/20 overflow-hidden">
         {image ? (
-          <LazyImage
-            src={image}
-            alt={name}
-            className="w-full h-full object-cover object-center"
-          />
+          <>
+            <img
+              src={image}
+              alt={name}
+              className="w-full h-full object-cover object-center filter brightness-110 contrast-105 saturate-110"
+              loading="lazy"
+            />
+            
+            {/* Premium Lighting - Top Light */}
+            <div className="absolute inset-0 bg-gradient-to-b from-white/12 via-transparent to-transparent pointer-events-none" />
+            
+            {/* Premium Lighting - Side Light */}
+            <div className="absolute inset-0 bg-gradient-to-r from-white/8 via-transparent to-black/10 pointer-events-none" />
+            
+            {/* Premium Lighting - Bottom Shadow */}
+            <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-black/30 pointer-events-none" />
+            
+            {/* Soft Vignette */}
+            <div className="absolute inset-0 pointer-events-none" style={{
+              background: 'radial-gradient(ellipse at center, transparent 20%, rgba(0,0,0,0.2) 100%)'
+            }} />
+          </>
         ) : (
           <div className="h-full flex items-center justify-center text-xs text-muted">
             Image coming soon
           </div>
         )}
 
-        <div className="absolute inset-0 bg-gradient-to-b from-transparent to-black/35" />
+        <div className="absolute inset-0 bg-gradient-to-b from-transparent to-black/20" />
 
-        {/* BADGES */}
-        <div className="absolute top-3 left-3 flex gap-2 text-[11px] font-semibold">
+        {/* BADGES - SMALLER */}
+        <div className="absolute top-2 left-2 flex gap-1 text-[10px] font-medium">
           {badge && (
-            <span className="px-2 py-1 rounded-full bg-accent text-black">
+            <span className="px-1.5 py-0.5 rounded bg-accent/90 text-black">
               {badge}
             </span>
           )}
-          <span className="px-2 py-1 rounded-full bg-black/60 text-white">
+          <span className="px-1.5 py-0.5 rounded bg-black/40 text-white/80">
             Add-on
           </span>
         </div>
 
-        {/* PRICE */}
-        <div className="absolute bottom-3 left-3 bg-black/70 text-white px-3 py-1.5 rounded-full text-sm font-bold">
-          ₹{price.toFixed(0)} · {snack.pack_size || '200g'} · Handmade
+        {/* PRICE - SMALLER */}
+        <div className="absolute bottom-2 left-2 bg-black/50 text-white/90 px-2 py-1 rounded text-xs font-medium">
+          ₹{price.toFixed(0)}
         </div>
 
-        {/* ADD BUTTON */}
-        <div className="absolute bottom-3 right-3">
-          <div className="bg-black/60 backdrop-blur-sm rounded-full px-1 py-1 transition-all duration-200 group">
-            <button
-              onClick={handleAdd}
-              className="
-                px-3 py-1.5 rounded-full text-xs font-semibold
-                bg-accent text-black
-                hover:bg-accent/90
-                transition-all duration-200
-                group-hover:px-5
-                relative overflow-hidden
-              "
-            >
-              <span className="transition-all duration-200 group-hover:opacity-0">
-                {qty > 0 ? `+ ${qty}` : (snack.min_order_qty > 1 ? `Add ${snack.min_order_qty}` : "Add")}
-              </span>
-              <span className="absolute inset-0 flex items-center justify-center opacity-0 transition-all duration-200 group-hover:opacity-100">
-                {qty > 0 ? `+ ${qty}` : (snack.min_order_qty > 1 ? `Add ${snack.min_order_qty}+` : "Add +")}
-              </span>
-            </button>
-          </div>
+        {/* ADD BUTTON - SMALLER */}
+        <div className="absolute bottom-2 right-2">
+          <button
+            onClick={handleAdd}
+            className="
+              px-2 py-1 rounded text-xs font-medium
+              bg-accent/90 text-black
+              hover:bg-accent
+              transition-all duration-200
+              relative overflow-hidden
+            "
+          >
+            {qty > 0 ? `+ ${qty}` : (snack.min_order_qty > 1 ? `Add ${snack.min_order_qty}` : "Add")}
+          </button>
         </div>
       </div>
 
-      {/* ================= CONTENT ================= */}
-      <div className="p-4 flex flex-col flex-1">
-        <h3 className="text-sm font-semibold leading-snug line-clamp-2">
+      {/* ================= CONTENT - SMALLER ================= */}
+      <div className="p-3 flex flex-col flex-1">
+        <h3 className="text-xs font-medium leading-tight line-clamp-2 text-muted-foreground">
           {name}
         </h3>
 
         {description && (
-          <p className="text-xs text-muted mt-2 line-clamp-2">
+          <p className="text-xs text-muted mt-1 line-clamp-1">
             {description}
           </p>
         )}
 
-        {/* EXPIRY DATE */}
+        {/* EXPIRY DATE - SMALLER */}
         {snack.expiry_date && (
-          <div className="mt-2 text-xs text-green-600 font-medium">
+          <div className="mt-1 text-xs text-green-600/70">
             Best before: {formatExpiryDate(snack.expiry_date)}
           </div>
         )}
 
-        {/* PAIRING SUGGESTIONS */}
+        {/* PAIRING SUGGESTIONS - SMALLER */}
         {snack.pairs_with && snack.pairs_with.length > 0 && (
-          <div className="mt-2 text-xs text-blue-600 font-medium">
-            Pairs best with {formatPairings(snack.pairs_with)}
+          <div className="mt-1 text-xs text-blue-600/70">
+            Pairs with {formatPairings(snack.pairs_with)}
           </div>
         )}
 
-        <div className="mt-auto pt-4 space-y-2">
-          {/* RATING (only if excellent) */}
+        <div className="mt-auto pt-2 space-y-1">
+          {/* RATING - SMALLER */}
           {rating > 4.2 && (
             <div className="flex items-center gap-1">
               <span className="text-yellow-400 text-xs">⭐</span>
@@ -202,20 +211,20 @@ function SnackCard({
             </div>
           )}
 
-          {/* FOOTER */}
-          <div className="flex justify-between items-center text-xs text-muted">
-            <span>Optional add-on</span>
+          {/* FOOTER - SMALLER */}
+          <div className="flex justify-between items-center text-xs text-muted/60">
+            <span>Optional</span>
             {snack.region && snack.region !== "other" && (
-              <span className="text-accent font-medium">
+              <span className="text-accent/70">
                 {snack.region.charAt(0).toUpperCase() + snack.region.slice(1).replace('_', ' ')}
               </span>
             )}
           </div>
 
-          {/* MIN ORDER RULE */}
+          {/* MIN ORDER RULE - SMALLER */}
           {snack.min_order_qty > 1 && (
-            <div className="text-xs text-orange-600 font-medium">
-              Minimum {snack.min_order_qty} packs required for delivery
+            <div className="text-xs text-orange-600/70">
+              Min {snack.min_order_qty} packs
             </div>
           )}
         </div>

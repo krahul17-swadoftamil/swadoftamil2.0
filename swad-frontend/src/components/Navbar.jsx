@@ -48,7 +48,8 @@ export default function Navbar({ statusOverride } = {}) {
           {/* CENTER: NAVIGATION TABS (Desktop) */}
           <nav className="hidden md:flex items-center gap-1 bg-surface/50 rounded-full px-2 py-1">
             <NavTab to="/home" icon="🍽️" label="Combos" />
-            <NavTab to="/snacks" icon="🍪" label="Snacks" />
+            <NavTab to="/items" icon="🥘" label="Our Kitchen" />
+            <NavTab to="/snacks" icon="🍪" label="Extras" />
             <NavTab to="/subscription" icon="🔁" label="Subscription" />
           </nav>
 
@@ -173,8 +174,11 @@ export default function Navbar({ statusOverride } = {}) {
               <MobileMenuItem to="/home" onClick={() => setMenuOpen(false)}>
                 🏠 Home
               </MobileMenuItem>
+              <MobileMenuItem to="/items" onClick={() => setMenuOpen(false)}>
+                🥘 What's Inside
+              </MobileMenuItem>
               <MobileMenuItem to="/snacks" onClick={() => setMenuOpen(false)}>
-                🍪 Snacks
+                🍪 Extras
               </MobileMenuItem>
               <MobileMenuItem to="/about" onClick={() => setMenuOpen(false)}>
                 ℹ️ About
